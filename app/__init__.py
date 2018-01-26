@@ -20,7 +20,8 @@ db = SQLAlchemy(app)
 # 初始化flask-Login
 lm = LoginManager()
 lm.init_app(app)
-# 初始化Flask-OpenID，存储临时文件夹的路径tmp
-oid = OpenID(app, os.path.join(basedir, 'tmp'))
+lm.login_view = "login"  # 指定登录视图
+# # 初始化Flask-OpenID，存储临时文件夹的路径tmp
+# oid = OpenID(app, os.path.join(basedir, 'tmp'))
 
 from app import views,models
