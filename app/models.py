@@ -1,6 +1,7 @@
 #-*- coding:utf-8 -*-
 from flask_login import UserMixin
 from flask_login._compat import unicode
+from hashlib import md5
 
 from app import db
 
@@ -15,6 +16,7 @@ class User(db.Model, UserMixin):
     role = db.Column(db.SmallInteger, default=ROLE_USER)
     posts = db.relationship('Post', backref='author', lazy='dynamic')
     last_seen = db.Column(db.String(120), unique=True)
+    about_me = db.Column(db.String(140))
 
     # def is_authenticated(self):
     #     return True  # 除非表示用户的对象因为某些原因不允许被认证。
@@ -42,6 +44,8 @@ class User(db.Model, UserMixin):
             return None
 
         return user
+
+
 
     # 调试输出 __repr__
     def __repr__(self):

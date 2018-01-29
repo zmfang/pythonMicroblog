@@ -14,6 +14,7 @@
         | <a href="{{ url_for('login') }}">Log in</a>
         or <a href="{{ url_for('sign_up') }}">Sign up</a>
     {% else %}
+        | <a href="{{ url_for('users', user_id = current_user.id) }}">Profile</a>
         | <a href="{{ url_for('logout') }}">Logout</a>
     {% endif %}
 </div>
@@ -30,5 +31,6 @@
 {% block content %}{% endblock %}
 </body>
 
-{% block js %}{% endblock %}
+{% block js %}
+{% endblock %}
 </html>

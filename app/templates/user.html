@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <table>
+        <tr valign="top">
+            <td><img src={{ url_for("static", filename="image/user.png") }}  width="100" height="100" ></td>
+            <td><h1>User: {{user.nickname}}</h1></td>
+        </tr>
+    </table>
+    {% if user.about_me %}
+        <p onclick="about_me()">about me: {{ user.about_me }}</p>
+    {% else %}
+        <p style="color:#4499EE;" onclick="about_me()">about me: I'm a person. ---- this info from the system.</p>
+    {% endif %}
+
+    <div id="aboutMe" style="display:none;">
+        <form action="{{ url_for('about_me', user_id=g.user.id) }}" method="POST">
+            {{ form.hidden_tag() }}
+            {{ form.describe }}
+            {{ form.submit }}
+        </form>
+    </div>
+
+    <p style="color:#4c4c4c;">last log: {{user.last_seen }}</p>
+
+    <a href="{{ url_for('publish', user_id=g.user.id) }}">Want to publish blogs?</a>
+
+    <hr />
+    <hr>
+    <p>hello</p>
+
+    {% for post in posts %}
+        <table>
+            <tr valign="top">
+                <td><img src="./image/blog.png"></td><td><i>{{post.author.nickname}} says:</i><br>{{post.body}}</td>
+            </tr>
+        </table>
+    {% endfor %}
+{% endblock %}
+{% block js %}
+
+{% endblock %}
