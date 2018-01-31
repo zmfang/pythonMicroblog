@@ -5,6 +5,7 @@
       <option name="ignoredIdentifiers">
         <list>
           <option value="app.app" />
+          <option value="app.forms.StrinField" />
         </list>
       </option>
     </inspection_tool>

@@ -5,7 +5,7 @@ from flask import render_template, flash, redirect, session, url_for, request, g
 from flask.ext.login import login_user, logout_user, current_user, login_required
 from lxml.doctestcompare import strip
 
-from .forms import LoginForm, SignUpForm, AboutMeForm, PublishBlogForm
+from .forms import LoginForm, SignUpForm, PublishBlogForm, EditForm, AboutMeForm
 from .models import User, ROLE_USER, Post
 
 from app import app, db, lm
@@ -208,7 +208,7 @@ def about_me(user_id):
             try:
                 db.session.add(user)
                 db.session.commit()
-            except:
+            except():
                 flash("Database error!")
                 return redirect(url_for("users", user_id=user_id))
         else:
@@ -219,3 +219,4 @@ def about_me(user_id):
 # @app.router("/image/<image_id>")
 # def index(image_id):
 #     image = file ()
+

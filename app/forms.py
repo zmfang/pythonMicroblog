@@ -1,6 +1,6 @@
 from flask_wtf import Form
-from wtforms import TextField, BooleanField, PasswordField, SubmitField, TextAreaField
-from wtforms.validators import Required, Length, Email
+from wtforms import TextField, BooleanField, PasswordField, SubmitField, TextAreaField, StringField
+from wtforms.validators import Required, Length, Email, DataRequired
 
 
 class LoginForm(Form):
@@ -26,6 +26,12 @@ class AboutMeForm(Form):
         Required(), Length(max=140)
     ])
     submit = SubmitField('YES')
+
+
+class EditForm(Form):
+    # nickname = StringField("nickname", validators=[DataRequired()])
+    about_me = TextAreaField("about me", validators=[Length(min=0, max=140)])
+    submit = SubmitField('Submit')
 
 
 class PublishBlogForm(Form):
