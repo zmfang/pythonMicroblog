@@ -9,14 +9,47 @@ ROLE_USER = 0
 ROLE_ADMIN = 1
 
 
+followers = db.Table('followers',
+                     db.Column('follower_id', db.Integer, db.ForeignKey('user.id')),
+                     db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
+                     )
+
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     nickname = db.Column(db.String(64), unique=True)
     email = db.Column(db.String(120), unique=True)
     role = db.Column(db.SmallInteger, default=ROLE_USER)
-    posts = db.relationship('Post', backref='author', lazy='dynamic')
+    posts = db.relationship('Post', backref='user', lazy='dynamic')
     last_seen = db.Column(db.String(120), unique=True)
     about_me = db.Column(db.String(140))
+    followed = db.relationship("User", secondary=followers,
+                               primaryjoin=(followers.c.follower_id == id),
+                               secondaryjoin=(followers.c.followed_id == id),
+                               backref=db.backref("followers", lazy="dynamic"),
+                               lazy="dynamic")
+
+    #  添加和移除“关注者”功能
+    def follow(self, user):
+        if not self.is_following(user):
+            self.followed.append(user)
+            return self
+
+    def unfollow(self, user):
+        if self.is_following(user):
+            self.followed.remove(user)
+            return self
+
+    def is_following(self, user):
+        return self.followed.filter(followers.c.followed_id == user.id).count() > 0
+
+    # 查询关注者所发布博客
+    def followed_post(self):
+        return Post.query.join(followers,
+                               (followers.c.followed_id == Post.user_id)
+                               .filter(followers.c.followed_id == self.id)
+                               .order_by(Post.timestamp.desc())
+                               )
 
     # def is_authenticated(self):
     #     return True  # 除非表示用户的对象因为某些原因不允许被认证。
@@ -60,5 +93,6 @@ class Post(db.Model):
 
     def __repr__(self):
         return '<Post %r>' % self.body
+
 
 

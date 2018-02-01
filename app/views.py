@@ -56,6 +56,10 @@ def login():
             try:
                 db.session.add(user)
                 db.session.commit()
+                # 关注自己
+                db.session.add(user.follow(user))
+                db.session.commit()
+
             except():
                 flash("错误：The Database error!")
                 return redirect("/login")
@@ -216,7 +220,41 @@ def about_me(user_id):
     return redirect(url_for("users", user_id=user_id))
 
 
-# @app.router("/image/<image_id>")
-# def index(image_id):
-#     image = file ()
+@app.route("/follow/<int:user_id>")
+@login_required
+def follow(user_id):
+    user = User.query.filter_by(id=user_id).first()
+    if user is None:
+        flash("User %d not found." % user_id)
+        return redirect(url_for("index"))
+    if user == g.user:
+        flash("You can\'t follow yourself!")
+        return redirect(url_for("users", user_id=user_id))
+    u = g.user.follow(user)
+    if u is None:
+        flash("Cannot follow" + user.nickname+'.')
+        return redirect(url_for("users", user_id=user_id))
+    db.session.add(u)
+    db.session.commit()
+    flash("You are now following" + user.nickname + "!")
+    return redirect(url_for("users", user_id=user_id))
 
+
+@app.route('/unfollow/<int:user_id>')
+@login_required
+def unfollow(user_id):
+    user = User.query.filter_by(id=user_id).first()
+    if user is None:
+        flash('User %d not found.' % user_id)
+        return redirect(url_for('index'))
+    if user == g.user:
+        flash('You can\'t unfollow yourself!')
+        return redirect(url_for('users', user_id=user_id))
+    u = g.user.unfollow(user)
+    if u is None:
+        flash('Cannot unfollow ' + user.nickname + '.')
+        return redirect(url_for('users', user_id=user_id))
+    db.session.add(u)
+    db.session.commit()
+    flash('You have stopped following ' + user.nickname + '.')
+    return redirect(url_for('users', user_id=user_id))
