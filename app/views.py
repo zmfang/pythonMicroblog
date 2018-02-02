@@ -4,16 +4,18 @@ import datetime
 from flask import render_template, flash, redirect, session, url_for, request, g
 from flask.ext.login import login_user, logout_user, current_user, login_required
 from lxml.doctestcompare import strip
-
+from config import POSTS_PER_PAGE
 from .forms import LoginForm, SignUpForm, PublishBlogForm, EditForm, AboutMeForm
 from .models import User, ROLE_USER, Post
 
 from app import app, db, lm
 
 
-@app.route('/')
-@app.route('/index')
-def index():
+@app.route('/', methods=["GET", "POST"])
+@app.route('/index', methods=["POST", "GET"])
+@app.route('/index/<int:page>', methods=["POST", "GET"])
+@login_required
+def index(page = 1):
     # user = "Man"  # 用户名
     # # posts = [  # 提交内容
     # #     {
@@ -25,9 +27,22 @@ def index():
     #         'body': 'The Avengers movie was so cool!'
     #     }
     # ]
+    form = PublishBlogForm()
+    if form.validate_on_submit():
+        post = Post(body=form.body.data, timestamp=datetime.datetime.utcnow(), user=g.user)
+        db.session.add(post)
+        db.session.commit()
+        flash('Your post is now live!')
+        # 重定向，避免了用户在提交 blog 后不小心触发刷新的动作而导致插入重复的 blog。
+        return redirect(url_for('index'))
+
+    # 查询关注者的博客，并分页显示
+    posts = g.user.followed_posts().paginate(page, POSTS_PER_PAGE, False)
 
     return render_template("index.html",
                            title='Home',
+                           form=form,
+                           posts=posts,
                            )
 
 
@@ -57,8 +72,9 @@ def login():
                 db.session.add(user)
                 db.session.commit()
                 # 关注自己
-                db.session.add(user.follow(user))
-                db.session.commit()
+                if not g.user.is_following(user):
+                    db.session.add(user.follow(user))
+                    db.session.commit()
 
             except():
                 flash("错误：The Database error!")
@@ -153,21 +169,22 @@ def before_request():
     g.user = current_user
 
 
-@app.route('/user/<int:user_id>', methods=["POST","GET"])
+@app.route('/user/<int:user_id>', methods=["POST", "GET"])
+@app.route('/user/<int:user_id>/<int:page>', methods=["POST", "GET"])
 @login_required
-def users(user_id):
+def users(user_id, page=1):
     form = AboutMeForm()
     user = User.query.filter(User.id == user_id).first()
     if not user:
         flash("The user is not exist.")
         redirect("/index")
 
-    blogs = user.posts.all()
+    posts = user.posts.paginate(page, POSTS_PER_PAGE, False)
 
     return render_template("user.html",
                            form=form,
                            user=user,
-                           blogs=blogs
+                           posts=posts
                            )
 
 

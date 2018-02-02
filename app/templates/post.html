@@ -1,8 +1,7 @@
 <table>
     <tr valign="top">
-{#        <td><img src="{{ post.author.avatar(50) }}"/></td>#}
-        <td><i>{{ post.author.nickname }} says:</i><br>{{ post.body }}</td>
+        <td><img src="{{ url_for("static", filename="image/user.png") }}" style="width: 50px"/></td>
+        <td><i>{{ post.user.nickname }} says:</i><br>{{ post.body }}</td>
     </tr>
-    <p>hello</p>
 
 </table>

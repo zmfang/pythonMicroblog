@@ -20,14 +20,14 @@ class User(db.Model, UserMixin):
     nickname = db.Column(db.String(64), unique=True)
     email = db.Column(db.String(120), unique=True)
     role = db.Column(db.SmallInteger, default=ROLE_USER)
-    posts = db.relationship('Post', backref='user', lazy='dynamic')
+    posts = db.relationship('Post', backref='user', lazy='dynamic')  # 一对多的关系
     last_seen = db.Column(db.String(120), unique=True)
     about_me = db.Column(db.String(140))
     followed = db.relationship("User", secondary=followers,
                                primaryjoin=(followers.c.follower_id == id),
                                secondaryjoin=(followers.c.followed_id == id),
                                backref=db.backref("followers", lazy="dynamic"),
-                               lazy="dynamic")
+                               lazy="dynamic")  # 多对多
 
     #  添加和移除“关注者”功能
     def follow(self, user):
@@ -44,12 +44,11 @@ class User(db.Model, UserMixin):
         return self.followed.filter(followers.c.followed_id == user.id).count() > 0
 
     # 查询关注者所发布博客
-    def followed_post(self):
+    def followed_posts(self):
         return Post.query.join(followers,
-                               (followers.c.followed_id == Post.user_id)
-                               .filter(followers.c.followed_id == self.id)
-                               .order_by(Post.timestamp.desc())
-                               )
+                               (followers.c.followed_id == Post.user_id)) \
+            .filter(followers.c.follower_id == self.id) \
+            .order_by(Post.timestamp.desc())
 
     # def is_authenticated(self):
     #     return True  # 除非表示用户的对象因为某些原因不允许被认证。

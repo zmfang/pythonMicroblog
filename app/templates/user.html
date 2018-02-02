@@ -7,14 +7,14 @@
             <td><h1>User: {{user.nickname}}</h1></td>
         </tr>
     </table>
-       <p>{{user.followers.count()}} followers |
+    <p>{{user.followers.count()}} followers |
 
-            {% if not g.user.is_following(user) %}
-                <a href="{{url_for('follow', user_id = user.id)}}">Follow</a>
-            {% else %}
-                <a href="{{url_for('unfollow', user_id = user.id)}}">Unfollow</a>
-            {% endif %}
-            </p>
+        {% if not g.user.is_following(user) %}
+            <a href="{{url_for('follow', user_id = user.id)}}">Follow</a>
+        {% else %}
+            <a href="{{url_for('unfollow', user_id = user.id)}}">Unfollow</a>
+        {% endif %}
+    </p>
     {% if user.about_me %}
         <p  >about me: {{ user.about_me }}   <a onclick="about_me()" style="color:#4499EE;">Edit</a></p>
     {% else %}
@@ -35,18 +35,19 @@
 
     <hr />
     <hr>
-    <p>hello</p>
-
-    {% for post in posts %}
+    {% for post in posts.items %}
         {% include 'post.html' %}
     {% endfor %}
+    {% if posts.has_prev %}<a href="{{ url_for('users', user_id= user.id, page = posts.prev_num) }}"><< Newer posts</a>{% else %}<< Newer posts{% endif %} |
+    {% if posts.has_next %}<a href="{{ url_for('users',user_id= user.id, page = posts.next_num) }}">Older posts >></a>{% else %}Older posts >>{% endif %}
+
 {% endblock %}
 {% block js %}
     {#    <script src="../static/javascript/user.js"></script>#}
     <script type="text/javascript">
-       ~function () {
-         console.log({{ posts }})
-       }()
+        ~function () {
+            console.log({{ posts }})
+        }()
         function about_me() {
             document.getElementById("aboutMe").style.display="";
         }
