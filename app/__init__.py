@@ -11,6 +11,7 @@ from flask.ext.login import LoginManager
 from flask.ext.openid import OpenID
 from config import basedir
 import os
+from flask.ext.mail import Mail
 
 # 初始化flask应用
 app = Flask(__name__)
@@ -23,5 +24,8 @@ lm.init_app(app)
 lm.login_view = "login"  # 指定登录视图
 # # 初始化Flask-OpenID，存储临时文件夹的路径tmp
 # oid = OpenID(app, os.path.join(basedir, 'tmp'))
+
+# 初始化mail对象
+mail = Mail(app)
 
 from app import views,models

@@ -17,3 +17,13 @@ WHOOSH_BASE = os.path.join(basedir, "search.db")
 
 # 搜素结果返回最大数量
 MAX_SEARCH_RESULTS = 50
+
+# email 支持
+MAIL_SERVER = ""
+MAIL_PORT = 465
+MAIL_USERNAME = ""
+MAIL_PASSWORD = ""
+MAIL_USE_SSL = True
+# 管理员邮箱
+ADMINS = [""]
+

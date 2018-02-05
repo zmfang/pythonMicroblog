@@ -4,6 +4,8 @@ import datetime
 from flask import render_template, flash, redirect, session, url_for, request, g
 from flask.ext.login import login_user, logout_user, current_user, login_required
 from lxml.doctestcompare import strip
+
+from app.emails import follower_notification
 from config import POSTS_PER_PAGE, MAX_SEARCH_RESULTS
 from .forms import LoginForm, SignUpForm, PublishBlogForm, AboutMeForm, SearchForm
 from .models import User, ROLE_USER, Post
@@ -260,6 +262,7 @@ def follow(user_id):
     db.session.add(u)
     db.session.commit()
     flash("You are now following" + user.nickname + "!")
+    follower_notification(user, g.user)
     return redirect(url_for("users", user_id=user_id))
 
 
