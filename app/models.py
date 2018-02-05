@@ -2,8 +2,10 @@
 from flask_login import UserMixin
 from flask_login._compat import unicode
 from hashlib import md5
-
+from app import app
+import sys
 from app import db
+import flask_whooshalchemyplus
 
 ROLE_USER = 0
 ROLE_ADMIN = 1
@@ -77,14 +79,13 @@ class User(db.Model, UserMixin):
 
         return user
 
-
-
     # 调试输出 __repr__
     def __repr__(self):
         return '<User %r>' % self.nickname
 
 
 class Post(db.Model):
+    __searchable__ = ["body"]
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.String(140))
     timestamp = db.Column(db.DateTime)
@@ -94,4 +95,5 @@ class Post(db.Model):
         return '<Post %r>' % self.body
 
 
+flask_whooshalchemyplus.init_app(app)
 

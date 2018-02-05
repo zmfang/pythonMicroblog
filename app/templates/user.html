@@ -16,9 +16,9 @@
         {% endif %}
     </p>
     {% if user.about_me %}
-        <p  >about me: {{ user.about_me }}   <a onclick="about_me()" style="color:#4499EE;">Edit</a></p>
+        <p >about me: {{ user.about_me }}  <a onclick="about_me()" style="color:#4499EE;">Edit</a></p>
     {% else %}
-        <p style="color:#4499EE;" onclick="about_me()">about me: I'm a person. ---- this info from the system.</p>
+        <p style="color:#4499EE;" >about me: I'm a person. ---- this info from the system.<a onclick="about_me()" tyle="color:#4499EE;">Edit</a></p>
     {% endif %}
 
     <div id="aboutMe" style="display:none;">
@@ -42,11 +42,13 @@
     {% if posts.has_next %}<a href="{{ url_for('users',user_id= user.id, page = posts.next_num) }}">Older posts >></a>{% else %}Older posts >>{% endif %}
 
 {% endblock %}
+
+
 {% block js %}
     {#    <script src="../static/javascript/user.js"></script>#}
     <script type="text/javascript">
         ~function () {
-            console.log({{ posts }})
+            console.log("hello")
         }()
         function about_me() {
             document.getElementById("aboutMe").style.display="";

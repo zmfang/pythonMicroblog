@@ -4,9 +4,10 @@ import datetime
 from flask import render_template, flash, redirect, session, url_for, request, g
 from flask.ext.login import login_user, logout_user, current_user, login_required
 from lxml.doctestcompare import strip
-from config import POSTS_PER_PAGE
-from .forms import LoginForm, SignUpForm, PublishBlogForm, EditForm, AboutMeForm
+from config import POSTS_PER_PAGE, MAX_SEARCH_RESULTS
+from .forms import LoginForm, SignUpForm, PublishBlogForm, AboutMeForm, SearchForm
 from .models import User, ROLE_USER, Post
+
 
 from app import app, db, lm
 
@@ -66,7 +67,7 @@ def login():
 
         if user:
             login_user(user)
-            user.last_seen = datetime.datetime.now()
+            # user.last_seen = datetime.datetime.now()
 
             try:
                 db.session.add(user)
@@ -167,6 +168,11 @@ def sign_up():
 @app.before_request
 def before_request():
     g.user = current_user
+    if g.user.is_authenticated:
+        g.user.last_seen = datetime.datetime.utcnow()
+        db.session.add(g.user)
+        db.session.commit()
+        g.search_form = SearchForm()
 
 
 @app.route('/user/<int:user_id>', methods=["POST", "GET"])
@@ -275,3 +281,22 @@ def unfollow(user_id):
     db.session.commit()
     flash('You have stopped following ' + user.nickname + '.')
     return redirect(url_for('users', user_id=user_id))
+
+
+@app.route('/search', methods=['POST'])
+@login_required
+def search():
+    if not g.search_form.validate_on_submit():
+        return redirect(url_for('index'))
+    return redirect(url_for('search_results',
+                            find=g.search_form.searchString.data))
+
+
+@app.route("/search_results/<find>")
+@login_required
+def search_results(find):
+    results = Post.query.whoosh_search(find, MAX_SEARCH_RESULTS)
+    return render_template("search_results.html",
+                           results=results,
+                           find=find
+                           )

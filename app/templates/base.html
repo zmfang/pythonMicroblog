@@ -15,6 +15,11 @@
         or <a href="{{ url_for('sign_up') }}">Sign up</a>
     {% else %}
         | <a href="{{ url_for('users', user_id = current_user.id) }}">Profile</a>
+        | <form style="display: inline" action="{{ url_for("search") }}" method="post" name="search">
+        {{ g.search_form.hidden_tag() }}
+        {{g.search_form.searchString(size=20)}}
+        {{ g.search_form.search }}
+    </form>
         | <a href="{{ url_for('logout') }}">Logout</a>
     {% endif %}
 </div>
@@ -29,8 +34,8 @@
     {% endif %}
 {% endwith %}
 {% block content %}{% endblock %}
+{% block js %}{% endblock %}
 </body>
 
-{% block js %}
-{% endblock %}
+
 </html>

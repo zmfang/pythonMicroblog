@@ -38,3 +38,8 @@ class PublishBlogForm(Form):
     body = TextAreaField('blog content', validators=[Required()])
     submit = SubmitField('Submit')
 
+
+class SearchForm(Form):
+    searchString = StringField("search", validators=[DataRequired()])
+    search = SubmitField("Search!")
+
