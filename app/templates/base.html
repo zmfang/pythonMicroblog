@@ -5,6 +5,10 @@
     {% else %}
         <title>microblog</title>
     {% endif %}
+    <script src="../static/javascript/moment-with-locales.min.js"></script>
+    <script type="text/javascript">
+        moment.locale("{{ g.locale }}")
+    </script>
 </head>
 <body>
 <div>

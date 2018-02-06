@@ -29,8 +29,9 @@
         </form>
     </div>
 
-    <p style="color:#4c4c4c;">last : {{user.last_seen }}</p>
-
+    {% if user.last_seen %}
+        <p ><em>Last seen: {{momentjs(user.last_seen).format("LLLL") }}</em></p>
+    {% endif %}
     <a href="{{ url_for('publish', user_id=g.user.id) }}">Want to publish blogs?</a>
 
     <hr />

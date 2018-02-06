@@ -9,7 +9,8 @@ from app.emails import follower_notification
 from config import POSTS_PER_PAGE, MAX_SEARCH_RESULTS
 from .forms import LoginForm, SignUpForm, PublishBlogForm, AboutMeForm, SearchForm
 from .models import User, ROLE_USER, Post
-
+from app import babel
+from config import LANGUAGES
 
 from app import app, db, lm
 
@@ -153,7 +154,7 @@ def sign_up():
             user.nickname = user_name
             user.email = user_email
             user.role = ROLE_USER
-            user.last_seen = datetime.datetime.now()
+            user.last_seen = datetime.datetime.utcnow()
         try:
             db.session.add(user)
             db.session.commit()
@@ -175,6 +176,7 @@ def before_request():
         db.session.add(g.user)
         db.session.commit()
         g.search_form = SearchForm()
+    g.locale = get_locale()
 
 
 @app.route('/user/<int:user_id>', methods=["POST", "GET"])
@@ -303,3 +305,8 @@ def search_results(find):
                            results=results,
                            find=find
                            )
+
+
+@babel.localeselector
+def get_locale():
+    return request.accept_languages.best_match(LANGUAGES.keys())

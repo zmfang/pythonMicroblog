@@ -23,7 +23,7 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120), unique=True)
     role = db.Column(db.SmallInteger, default=ROLE_USER)
     posts = db.relationship('Post', backref='user', lazy='dynamic')  # 一对多的关系
-    last_seen = db.Column(db.String(120), unique=True)
+    last_seen = db.Column(db.DateTime)
     about_me = db.Column(db.String(140))
     followed = db.relationship("User", secondary=followers,
                                primaryjoin=(followers.c.follower_id == id),

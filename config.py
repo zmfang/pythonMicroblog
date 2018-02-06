@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+# ...
+# available languages
 CSRF_ENABLED = True
 SECRET_KEY = 'bawel'
 
@@ -27,3 +30,9 @@ MAIL_USE_SSL = True
 # 管理员邮箱
 ADMINS = [""]
 
+# 网页语言配置
+LANGUAGES = {
+    'en': 'English',
+    'es': 'Español',
+    'zh-cn': 'Chinese',
+}
