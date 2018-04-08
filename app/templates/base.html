@@ -5,7 +5,7 @@
     {% else %}
         <title>microblog</title>
     {% endif %}
-    <script src="../static/javascript/moment-with-locales.min.js"></script>
+    <script src="{{ url_for('static',filename='javascript/moment-with-locales.min.js') }}"></script>
     <script type="text/javascript">
         moment.locale("{{ g.locale }}")
     </script>
@@ -39,7 +39,6 @@
 {% endwith %}
 {% block content %}{% endblock %}
 {% block js %}{% endblock %}
+
 </body>
-
-
 </html>
