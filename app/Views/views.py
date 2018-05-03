@@ -1,4 +1,5 @@
-import datetime
+import uuid
+from datetime import datetime
 
 # from flask import Response, Flask
 from flask import render_template, flash, redirect, session, url_for, request, g
@@ -7,47 +8,51 @@ from lxml.doctestcompare import strip
 
 from app.emails import follower_notification
 from config import POSTS_PER_PAGE, MAX_SEARCH_RESULTS
-from .forms import LoginForm, SignUpForm, PublishBlogForm, AboutMeForm, SearchForm
-from .models import User, ROLE_USER, Post
+from ..forms import LoginForm, SignUpForm, PublishBlogForm, AboutMeForm, SearchForm
+from ..models import User, ROLE_USER, login_required
 from app import babel
 from config import LANGUAGES
+from flask import Blueprint, jsonify, request, g
+from ..models import Post, FeedsFav, FeedsComment
+
+# app = Blueprint('userApi', __name__)
 
 from app import app, db, lm
 
 
-@app.route('/', methods=["GET", "POST"])
-@app.route('/index', methods=["POST", "GET"])
-@app.route('/index/<int:page>', methods=["POST", "GET"])
-@login_required
-def index(page = 1):
-    # user = "Man"  # 用户名
-    # # posts = [  # 提交内容
-    # #     {
-    # #         'author': {'nickname': 'John'},
-    # #         'body': 'Beautiful day in Portland!'
-    # #     },
-    #     {
-    #         'author': {'nickname': 'Susan'},
-    #         'body': 'The Avengers movie was so cool!'
-    #     }
-    # ]
-    form = PublishBlogForm()
-    if form.validate_on_submit():
-        post = Post(body=form.body.data, timestamp=datetime.datetime.utcnow(), user=g.user)
-        db.session.add(post)
-        db.session.commit()
-        flash('Your post is now live!')
-        # 重定向，避免了用户在提交 blog 后不小心触发刷新的动作而导致插入重复的 blog。
-        return redirect(url_for('index'))
-
-    # 查询关注者的博客，并分页显示
-    posts = g.user.followed_posts().paginate(page, POSTS_PER_PAGE, False)
-
-    return render_template("index.html",
-                           title='Home',
-                           form=form,
-                           posts=posts,
-                           )
+# @app.route('/', methods=["GET", "POST"])
+# @app.route('/index', methods=["POST", "GET"])
+# @app.route('/index/<int:page>', methods=["POST", "GET"])
+# @login_required
+# def index(page = 1):
+#     # user = "Man"  # 用户名
+#     # # posts = [  # 提交内容
+#     # #     {
+#     # #         'author': {'nickname': 'John'},
+#     # #         'body': 'Beautiful day in Portland!'
+#     # #     },
+#     #     {
+#     #         'author': {'nickname': 'Susan'},
+#     #         'body': 'The Avengers movie was so cool!'
+#     #     }
+#     # ]
+#     form = PublishBlogForm()
+#     if form.validate_on_submit():
+#         post = Post(body=form.body.data, timestamp=datetime.datetime.utcnow(), user=g.user)
+#         db.session.add(post)
+#         db.session.commit()
+#         flash('Your post is now live!')
+#         # 重定向，避免了用户在提交 blog 后不小心触发刷新的动作而导致插入重复的 blog。
+#         return redirect(url_for('index'))
+#
+#     # 查询关注者的博客，并分页显示
+#     posts = g.user.followed_posts().paginate(page, POSTS_PER_PAGE, False)
+#
+#     return render_template("index.html",
+#                            title='Home',
+#                            form=form,
+#                            posts=posts,
+#                            )
 
 
 # 用于从数据库加载用户，这个函数将会被 Flask-Login 使用
@@ -56,48 +61,24 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-@app.route('/login', methods=['GET', 'POST'])
-# @oid.loginhandler   # 告诉 Flask-OpenID 这是我们的登录视图函数。
+@app.route('/login', methods=['POST'])
 def login():
-    # 3
-    # 验证用户是否被验证
-    if g.user.is_authenticated:
-        return redirect("index")
-    # 注册验证
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.login_check(request.form.get("user_name"))
+    mail = request.form.get('mail')
+    pwd = request.form.get('password')
+    if not mail or not pwd:
+        return jsonify(success=False, msg='参数错误')
+    user = User.verify_user(mail, pwd)
+    if user:
+        profile = {
+            "nickname": user.nickname,
+            "avatar": user.avatar,
+            "introduce": user.introduce,
+            "mail": user.mail,
+            "uid": user.uid
+        }
+        return jsonify(success=True, token=user.generate_auth_token(), profile=profile)
+    return jsonify(success=False, msg='用户名或密码错误')
 
-        if user:
-            login_user(user)
-            # user.last_seen = datetime.datetime.now()
-
-            try:
-                db.session.add(user)
-                db.session.commit()
-                # 关注自己
-                if not g.user.is_following(user):
-                    db.session.add(user.follow(user))
-                    db.session.commit()
-
-            except():
-                flash("错误：The Database error!")
-                return redirect("/login")
-
-            flash('Your name: ' + request.form.get('user_name'))
-            flash('remember me? ' + str(request.form.get('remember_me')))
-            session['remember_me'] = form.remember_me.data
-            # return redirect(url_for("users", user_id=current_user.id))
-            return redirect(url_for("index"))
-            # url_for为一个给定的视图函数获取 URL
-        else:
-            flash("Login failed,Your name is not exist!")
-            return redirect("/login")
-
-    return render_template("login.html",
-                           title="Sign In",
-                           form=form
-                           )
     # 1.1
 
     # form = LoginForm()
@@ -109,6 +90,8 @@ def login():
     # return render_template('login.html',
     #                        title='Sign In',
     #                        form=form)
+
+
 # 2
 #  g 全局变量是一个在请求生命周期中用来存储和共享数据
 # if g.user is not None and g.user.is_authenticated():
@@ -135,37 +118,26 @@ def logout():
     return redirect(url_for("index"))
 
 
-@app.route("/sign-up", methods=['Get', 'Post'])
-def sign_up():
-    form = SignUpForm()
-    user = User()
-    if form.validate_on_submit():
-        user_name = request.form.get('user_name')
-        user_email = request.form.get('user_email')
+# 注册
+@app.route('/register', methods=['POST'])
+def register():
+    pwd = request.form['pwd']
+    nickname = request.form['nickname']
+    mail = request.form['mail']
+    s = {"success": False, "Msg": "注册成功"}
 
-        register_check = User.query.filter(db.or_(
-            User.nickname == user_name, User.email == user_email
-        )).first()
-        if register_check:
-            flash("error:The user's name or email already exits!")
-            return redirect("/sign-up")
+    # Check mail available
+    if User.query.filter_by(mail=mail).first() is not None:
+        s['Msg'] = '邮箱已被使用'
+        return jsonify(s)
 
-        if len(user_name) and len(user_email):
-            user.nickname = user_name
-            user.email = user_email
-            user.role = ROLE_USER
-            user.last_seen = datetime.datetime.utcnow()
-        try:
-            db.session.add(user)
-            db.session.commit()
-        except():
-            flash("The Database error!")
-            return redirect('/sign-up')
-
-        flash("Sign up successful!")
-        return redirect('/index')
-
-    return render_template("sign_up.html", form=form)
+    # Add User
+    new_user = User(mail, pwd, nickname)
+    db.session.add(new_user)
+    db.session.commit()
+    s['success'] = True
+    s['token'] = new_user.generate_auth_token()
+    return jsonify(s)
 
 
 @app.before_request
@@ -259,7 +231,7 @@ def follow(user_id):
         return redirect(url_for("users", user_id=user_id))
     u = g.user.follow(user)
     if u is None:
-        flash("Cannot follow" + user.nickname+'.')
+        flash("Cannot follow" + user.nickname + '.')
         return redirect(url_for("users", user_id=user_id))
     db.session.add(u)
     db.session.commit()
@@ -310,3 +282,117 @@ def search_results(find):
 @babel.localeselector
 def get_locale():
     return request.accept_languages.best_match(LANGUAGES.keys())
+
+
+# 更新个人资料
+@app.route('/update_profile', methods=['POST'])
+@login_required
+def update_profile():
+    print(request.form)
+    # print(request.files)
+    nickname = request.form.get('nickname')
+    introduce = request.form.get('introduce')
+    pic = request.files.get('image')
+    if pic :
+        picture = str(uuid.uuid4())
+        pic.save('app/static/uploads/%s' % picture)
+        g.user.avatar = picture
+    # avatar = request.form.get('avatar')
+    # print(avatar)
+    g.user.nickname = nickname
+    g.user.introduce = introduce
+
+    db.session.commit()
+    return jsonify(success=True)
+
+
+# 更改密码
+@app.route('/update_password', methods=['POST'])
+@login_required
+def update_password():
+    new_password = request.form.get('password')
+    g.user.update_password(new_password)
+    db.session.commit()
+    new_token = g.user.generate_auth_token()
+    return jsonify(success=True, token=new_token)
+
+
+@app.route('/profile')
+@login_required
+def get_profile():
+    user = g.user
+    profile = {
+        "nickname": user.nickname,
+         "avatar": user.avatar,
+        "introduce": user.introduce,
+        "mail": user.mail,
+        "uid": user.uid,
+        "token": user.generate_auth_token()
+    }
+    return jsonify(profile)
+
+
+@app.route('/personal_center')
+@login_required
+def get_person_center():
+    user = g.user
+    posts = Post.query.filter_by(uid=user.uid).order_by(Post.fid.desc()).all()
+    fav_count = FeedsFav.query.join(Post).filter(Post.uid == user.uid).count()
+    comment_count = FeedsComment.query.join(Post).filter(Post.uid == user.uid).count()
+    posts_list = [{"fid": each.fid, "imgKey": each.picture} for each in posts]
+    profile = {
+        "favCount": fav_count,
+        "commentCount": comment_count,
+        "feeds": posts_list
+    }
+    return jsonify(profile)
+
+
+
+@app.route('/comments_me')
+@login_required
+def get_comments_me():
+    user = g.user
+    return jsonify(data=FeedsComment.comments_dict_for_uid(user.uid))
+
+
+@app.route('/like_me')
+@login_required
+def get_like_me():
+    user = g.user
+
+    arr = db.session.query(FeedsFav, Post, User).filter(FeedsFav.uid == User.uid,
+                                                        Post.fid == FeedsFav.fid,
+                                                        Post.uid == user.uid
+                                                        ).all()
+    data = [{"fid": each[1].fid,
+             "content": each[1].content,
+             "picture": each[1].picture,
+             "user": each[2].general_info_dict} for each in arr]
+
+    return jsonify(data=data)
+
+
+@app.route('/stranger_center/<uid>')
+@login_required
+def get_stranger_center(uid):
+    user = User.query.filter_by(uid=uid).first()
+    posts = Post.query.filter_by(uid=user.uid).order_by(Post.fid.desc()).all()
+    fav_count = FeedsFav.query.join(Post).filter(Post.uid == user.uid).count()
+    comment_count = FeedsComment.query.join(Post).filter(Post.uid == user.uid).count()
+    posts_list = [{"fid": each.fid, "imgKey": each.picture} for each in posts]
+    profile = {
+        "profile":{
+            "nickname": user.nickname,
+            "avatar": user.avatar,
+            "introduce": user.introduce,
+            "mail": user.mail,
+            # "uid": user.uid,
+            # "token": user.generate_auth_token()
+        },
+        "favCount": fav_count,
+        "commentCount": comment_count,
+        "feeds": posts_list
+    }
+    return jsonify(profile)
+

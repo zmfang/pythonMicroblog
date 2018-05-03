@@ -35,4 +35,4 @@ app.jinja_env.globals["momentjs"] = momentsjs
 # 便于外国访问者
 babel = Babel(app)
 
-from app import views, models
+from app import Views, models

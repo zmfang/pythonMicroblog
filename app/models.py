@@ -1,8 +1,17 @@
 #-*- coding:utf-8 -*-
+import functools
+from datetime import datetime
+
+from flask import request, jsonify, g
 from flask_login import UserMixin
 from flask_login._compat import unicode
 from hashlib import md5
-from app import app
+
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from itsdangerous import BadSignature, SignatureExpired
+from werkzeug.security import generate_password_hash, check_password_hash
+
+from app import app as parent_app
 import sys
 from app import db
 import flask_whooshalchemyplus
@@ -12,22 +21,26 @@ ROLE_ADMIN = 1
 
 
 followers = db.Table('followers',
-                     db.Column('follower_id', db.Integer, db.ForeignKey('user.id')),
-                     db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
+                     db.Column('follower_id', db.Integer, db.ForeignKey('user.uid')),
+                     db.Column('followed_id', db.Integer, db.ForeignKey('user.uid'))
                      )
 
 
 class User(db.Model, UserMixin):
-    id = db.Column(db.Integer, primary_key=True)
+    uid = db.Column(db.Integer,autoincrement=True, primary_key=True)
     nickname = db.Column(db.String(64), unique=True)
-    email = db.Column(db.String(120), unique=True)
+    mail = db.Column(db.String(120), unique=True)
+
+    password = db.Column(db.Text)
+    avatar = db.Column(db.Text)
+    token_version = db.Column(db.Integer)
     role = db.Column(db.SmallInteger, default=ROLE_USER)
     posts = db.relationship('Post', backref='user', lazy='dynamic')  # 一对多的关系
     last_seen = db.Column(db.DateTime)
-    about_me = db.Column(db.String(140))
+    introduce = db.Column(db.String(140))
     followed = db.relationship("User", secondary=followers,
-                               primaryjoin=(followers.c.follower_id == id),
-                               secondaryjoin=(followers.c.followed_id == id),
+                               primaryjoin=(followers.c.follower_id == uid),
+                               secondaryjoin=(followers.c.followed_id == uid),
                                backref=db.backref("followers", lazy="dynamic"),
                                lazy="dynamic")  # 多对多
 
@@ -43,14 +56,14 @@ class User(db.Model, UserMixin):
             return self
 
     def is_following(self, user):
-        return self.followed.filter(followers.c.followed_id == user.id).count() > 0
+        return self.followed.filter(followers.c.followed_id == user.uid).count() > 0
 
     # 查询关注者所发布博客
-    def followed_posts(self):
-        return Post.query.join(followers,
-                               (followers.c.followed_id == Post.user_id)) \
-            .filter(followers.c.follower_id == self.id) \
-            .order_by(Post.timestamp.desc())
+    # def followed_posts(self):
+    #     return Post.query.join(followers,
+    #                            (followers.c.followed_id == Post.user_id)) \
+    #         .filter(followers.c.follower_id == self.uid) \
+    #         .order_by(Post.create_time.desc())
 
     # def is_authenticated(self):
     #     return True  # 除非表示用户的对象因为某些原因不允许被认证。
@@ -68,32 +81,176 @@ class User(db.Model, UserMixin):
     #         return str(self.id)
 
     # cls为类，self为类的实例，相当于this
-    @classmethod
-    def login_check(cls, user_name):
-        user = cls.query.filter(db.or_(
-            User.nickname == user_name, User.email == user_name
-        )).first()
+    def __init__(self, mail, password, nickname,):
+        self.mail = mail
+        self.password = generate_password_hash(password)
+        self.nickname = nickname
+        self.introduce = ''
+        self.token_version = 0
+        # self.avatar = 'avatar_default.png'
 
-        if not user:
-            return None
+    def update_password(self, password):
+        self.password = generate_password_hash(password)
+        self.token_version = self.token_version + 1
 
-        return user
+    def generate_auth_token(self, expiration=4320000):
+        s = Serializer(parent_app.config['SECRET_KEY'], expires_in=expiration)
+        return (s.dumps({'id': self.uid, 'version': self.token_version})).decode()
 
-    # 调试输出 __repr__
-    def __repr__(self):
-        return '<User %r>' % self.nickname
+    @staticmethod
+    def verify_auth_token(token):
+        s = Serializer(parent_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+        except SignatureExpired:
+            return None  # valid token, but expired
+        except BadSignature:
+            return None  # invalid token
+
+        user = User.query.filter_by(uid=data['id']).first()
+        if user and user.token_version == data['version']:
+            return user
+        return None
+
+    @staticmethod
+    def verify_user(mail, password):
+        user = User.query.filter_by(mail=mail).first()
+        if user:
+            if check_password_hash(user.password, password):
+                return user
+        return None
+
+    @property
+    def general_info_dict(self):
+        return {
+            "nickname": self.nickname,
+            "avatar": self.avatar,
+            "introduce": self.introduce,
+            "uid": self.uid
+        }
+
+
+def login_required(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kw):
+            token = request.headers.get('token')
+            if not token:
+                return jsonify(success=False, message='token no found'), 401
+            user = User.verify_auth_token(token)
+            if user:
+                g.user = user
+                return func(*args, **kw)
+            return jsonify(success=False, message='token verify fail'), 401
+
+        return wrapper
 
 
 class Post(db.Model):
-    __searchable__ = ["body"]
-    id = db.Column(db.Integer, primary_key=True)
-    body = db.Column(db.String(140))
-    timestamp = db.Column(db.DateTime)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    __searchable__ = ["content"]
+    fid = db.Column(db.Integer, primary_key=True)
+    uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
+    content = db.Column(db.Text)
+    picture = db.Column(db.Text, nullable=True)
+    view_count=db.Column(db.Integer)
+    # picture==save_name
 
-    def __repr__(self):
-        return '<Post %r>' % self.body
+    # picture_ratio = db.Column(db.Float)
+    create_time = db.Column(db.DateTime)
+    fav_count = db.Column(db.Integer)
+    comment_count = db.Column(db.Integer)
+
+    def __init__(self, uid, content, picture,):
+        self.uid = uid
+        self.content = content
+        self.picture = picture
+        # self.picture_ratio = picture_ratio
+        self.create_time = datetime.now()
+        self.view_count=0
+        self.fav_count = 0
+        self.comment_count = 0
+
+    @property
+    def create_time_str(self):
+        return self.create_time.strftime('%Y/%m/%d %H:%M:%S')
+
+    @property
+    def user_model(self):
+        return User.query.filter_by(uid=self.uid).first()
+
+    @property
+    def general_info_dict_with_user(self):
+        return {
+            "fid": self.fid,
+            "content": self.content,
+            "picture": self.picture,
+            # "pictureRatio": round(self.picture_ratio, 2),
+            "viewCount":self.view_count,
+            "createTime": self.create_time_str,
+            "favCount": self.fav_count,
+            "commentCount": self.comment_count,
+            "user": self.user_model.general_info_dict
+        }
 
 
-flask_whooshalchemyplus.init_app(app)
+class FeedsFav(db.Model):
+    fid = db.Column(db.Integer, db.ForeignKey('post.fid'), primary_key=True)
+    uid = db.Column(db.Integer, db.ForeignKey('user.uid'), primary_key=True)
+    time = db.Column(db.Integer)
+
+    def __init__(self, fid, uid):
+        self.fid = fid
+        self.uid = uid
+        self.time = int(datetime.now().timestamp())
+
+
+class FeedsComment(db.Model):
+    cid = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    fid = db.Column(db.Integer, db.ForeignKey('post.fid'))
+    uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
+    text = db.Column(db.Text)
+    create_time = db.Column(db.DateTime)
+
+    def __init__(self, fid, uid, text):
+        self.fid = fid
+        self.uid = uid
+        self.text = text
+        self.create_time = datetime.now()
+
+    @property
+    def create_time_str(self):
+        return self.create_time.strftime('%m/%d %H:%M')
+
+    @property
+    def general_info_dict(self):
+        return {
+            "cid": self.cid,
+            "text": self.text,
+            "createTime": self.create_time_str,
+            "fid": self.fid,
+            "picture": None
+        }
+
+    def info_dict_for_user(self, user, post=None):
+        general_dict = self.general_info_dict
+        general_dict['user'] = user.general_info_dict
+        if post:
+            general_dict['picture'] = post.picture
+        return general_dict
+
+    @classmethod
+    def comments_dict_for_feed(cls, fid):
+        comments_arr = db.session.query(FeedsComment, User).filter(FeedsComment.fid == fid,
+                                                                    FeedsComment.uid == User.uid).all()
+        return [each[0].info_dict_for_user(each[1]) for each in comments_arr]
+
+    @classmethod
+    def comments_dict_for_uid(cls, uid):
+        comments_arr = db.session.query(FeedsComment, Post, User).filter(Post.uid == User.uid,
+                                                                           FeedsComment.fid == Post.fid,
+                                                                           Post.uid == uid).all()
+        return [each[0].info_dict_for_user(each[2], post=each[1]) for each in comments_arr]
+
+
+
+flask_whooshalchemyplus.init_app(parent_app)
 
