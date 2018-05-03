@@ -1,4 +1,5 @@
 #-*- coding:utf-8 -*-
+
 import functools
 from datetime import datetime
 
@@ -30,9 +31,9 @@ class User(db.Model, UserMixin):
     uid = db.Column(db.Integer,autoincrement=True, primary_key=True)
     nickname = db.Column(db.String(64), unique=True)
     mail = db.Column(db.String(120), unique=True)
-
     password = db.Column(db.Text)
     avatar = db.Column(db.Text)
+
     token_version = db.Column(db.Integer)
     role = db.Column(db.SmallInteger, default=ROLE_USER)
     posts = db.relationship('Post', backref='user', lazy='dynamic')  # 一对多的关系
@@ -43,6 +44,12 @@ class User(db.Model, UserMixin):
                                secondaryjoin=(followers.c.followed_id == uid),
                                backref=db.backref("followers", lazy="dynamic"),
                                lazy="dynamic")  # 多对多
+    name = db.Column(db.Text)
+    stu_code = db.Column(db.Text)
+    qq = db.Column(db.Text)
+    phone = db.Column(db.Text)
+    team = db.Column(db.Text)
+    activity = db.Column(db.VARCHAR(10), db.ForeignKey('activities.activity_name'))
 
     #  添加和移除“关注者”功能
     def follow(self, user):
@@ -81,12 +88,18 @@ class User(db.Model, UserMixin):
     #         return str(self.id)
 
     # cls为类，self为类的实例，相当于this
-    def __init__(self, mail, password, nickname,):
+    def __init__(self, mail, password, nickname,name, stu_code, qq, phone, activity):
         self.mail = mail
         self.password = generate_password_hash(password)
         self.nickname = nickname
         self.introduce = ''
         self.token_version = 0
+        self.name = name
+        self.stu_code = stu_code
+        self.qq = qq
+        self.phone = phone
+        self.activity = activity
+
         # self.avatar = 'avatar_default.png'
 
     def update_password(self, password):
@@ -96,6 +109,12 @@ class User(db.Model, UserMixin):
     def generate_auth_token(self, expiration=4320000):
         s = Serializer(parent_app.config['SECRET_KEY'], expires_in=expiration)
         return (s.dumps({'id': self.uid, 'version': self.token_version})).decode()
+
+    @property
+    def team_str(self):
+        if self.team is None:
+            return ""
+        return self.team
 
     @staticmethod
     def verify_auth_token(token):
@@ -131,23 +150,23 @@ class User(db.Model, UserMixin):
 
 
 def login_required(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kw):
-            token = request.headers.get('token')
-            if not token:
-                return jsonify(success=False, message='token no found'), 401
-            user = User.verify_auth_token(token)
-            if user:
-                g.user = user
-                return func(*args, **kw)
-            return jsonify(success=False, message='token verify fail'), 401
+    @functools.wraps(func)
+    def wrapper(*args, **kw):
+        token = request.headers.get('token')
+        if not token:
+            return jsonify(success=False, message='token no found'), 401
+        user = User.verify_auth_token(token)
+        if user:
+            g.user = user
+            return func(*args, **kw)
+        return jsonify(success=False, message='token verify fail'), 401
 
-        return wrapper
+    return wrapper
 
 
 class Post(db.Model):
     __searchable__ = ["content"]
-    fid = db.Column(db.Integer, primary_key=True)
+    fid = db.Column(db.Integer, primary_key=True,autoincrement=True)
     uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
     content = db.Column(db.Text)
     picture = db.Column(db.Text, nullable=True)
@@ -240,16 +259,116 @@ class FeedsComment(db.Model):
     @classmethod
     def comments_dict_for_feed(cls, fid):
         comments_arr = db.session.query(FeedsComment, User).filter(FeedsComment.fid == fid,
-                                                                    FeedsComment.uid == User.uid).all()
+                                                                   FeedsComment.uid == User.uid).all()
         return [each[0].info_dict_for_user(each[1]) for each in comments_arr]
 
     @classmethod
     def comments_dict_for_uid(cls, uid):
         comments_arr = db.session.query(FeedsComment, Post, User).filter(Post.uid == User.uid,
-                                                                           FeedsComment.fid == Post.fid,
-                                                                           Post.uid == uid).all()
+                                                                         FeedsComment.fid == Post.fid,
+                                                                         Post.uid == uid).all()
         return [each[0].info_dict_for_user(each[2], post=each[1]) for each in comments_arr]
 
+
+class Activities(db.Model):
+    # __bind_key__ = 'activity'
+    # activity_name = db.Column(db.VARCHAR(10), primary_key=True, unique=True)
+    aid = db.Column(db.Integer, primary_key=True,autoincrement=True)
+    uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
+    title = db.Column(db.Text)
+    note = db.Column(db.Text)
+    picture = db.Column(db.Text, nullable=True)
+    address = db.Column(db.Text)
+    start_time = db.Column(db.DateTime)
+    phone = db.Column(db.Text)
+    create_time = db.Column(db.DateTime)
+    join_time = db.Column(db.DateTime)
+    end_time = db.Column(db.DateTime)
+    organization =db.Column(db.Text)
+    activity_type = db.Column(db.Text)
+    max_person = db.Column(db.Integer)
+    award = db.Column(db.Integer)
+    # reg_enable = db.Column(db.Boolean, default=True)
+    team_enable = db.Column(db.Boolean, default=False)
+    upload_enable = db.Column(db.Boolean, default=False)
+    view_count=db.Column(db.Integer)
+    rank = db.Column(db.Integer,)
+    hide = db.Column(db.Boolean, default=False)
+    registered = db.Column(db.Integer)
+
+    def __init__(self, uid, title, note, picture, address, start_time, phone, join_time,
+                 end_time, activity_type, max_person, award, team_enable, upload_enable, organization):
+        self.uid = uid
+        self.title = title
+        self.note = note
+        self.picture = picture
+        self.address = address
+        self.start_time = start_time
+        self.phone = phone
+        self.join_time = join_time
+        self.end_time = end_time
+        self.activity_type = activity_type
+        self.max_person = max_person
+        self.award = award
+        self.team_enable = team_enable
+        self.upload_enable = upload_enable
+        self.organization = organization
+        self.create_time = datetime.now()
+        self.view_count = 0
+        self.registered = 0
+
+        # self.rank = rank
+        self.hide = False
+
+    @property
+    def create_time_str(self):
+        return self.create_time.strftime('%Y.%m.%d')
+
+    @property
+    def user_model(self):
+        return User.query.filter_by(uid=self.uid).first()
+
+    @property
+    def start_time_str(self):
+        return self.start_time.strftime('%Y-%m-%d %a %H:%M')
+
+    @property
+    def general_info_act_with_user(self):
+        return {
+            "aid": self.aid,
+            "title": self.title,
+            "picture": self.picture,
+            "start_time": self.start_time_str,
+            # "pictureRatio": round(self.picture_ratio, 2),
+            "address": self.address,
+            "createTime": self.create_time_str,
+            "max_person": self.max_person,
+            "registered": self.registered,
+            "user": self.user_model.general_info_dict
+        }
+    # def __repr__(self):
+    #     return "{0} {1} {2}".format(self.activity_name, self.team_enable, self.upload_enable)
+
+
+class UploadHistory(db.Model):
+    __bind_key__ = 'activity'
+    uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
+    activity = db.Column(db.VARCHAR, db.ForeignKey('activities.aid'))
+    time = db.Column(db.DateTime)
+    size = db.Column(db.Text)
+    fid = db.Column(db.Integer, primary_key=True)
+
+    def __init__(self, sid, activity, size):
+        self.sid = sid
+        self.size = size
+        self.time = datetime.now()
+        self.activity = activity
+
+
+class Admins(db.Model):
+    __bind_key__ = 'activity'
+    user = db.Column(db.VARCHAR, primary_key=True)
+    passwd = db.Column(db.Text)
 
 
 flask_whooshalchemyplus.init_app(parent_app)
