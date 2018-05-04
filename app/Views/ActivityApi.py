@@ -2,13 +2,13 @@ from flask import Blueprint, jsonify, request, g, abort
 from app import app, db, lm
 import time
 from ..models import User, login_required, Activities
-from ..models import Post, FeedsComment, FeedsFav
+from ..models import Activities, ActivityComment, ActivityFav
 from sqlalchemy.exc import IntegrityError
 # from .qiniuApi import delete_key
 import datetime
 import uuid
 
-# app = Blueprint('feedsApi', __name__)
+# app = Blueprint('activitysApi', __name__)
 
 
 @app.route('/sendActivity', methods=['POST'])
@@ -64,7 +64,7 @@ def get_activitylist():
     else:
         timestamp = datetime.datetime.fromtimestamp(int(timestamp))
 
-    activities = Activities.query.filter(Activities.activity_type==activity_type,Activities.create_time < timestamp).order_by(Activities.start_time.desc()).limit(10).all()
+    activities = Activities.query.filter(Activities.activity_type == activity_type,Activities.create_time < timestamp).order_by(Activities.start_time.desc()).limit(10).all()
 
     res =[]
     for each in activities:
@@ -72,7 +72,7 @@ def get_activitylist():
         each.view_count += 1
 
     db.session.commit()
-    # view_count = [(each.view_count+=1) for each in feeds]
+    # view_count = [(each.view_count+=1) for each in activitys]
     datetime.datetime.now().timestamp()
 
     if len(activities) > 0:
@@ -82,3 +82,146 @@ def get_activitylist():
         end = True
         early_time_stamp = datetime.datetime.now().timestamp()
     return jsonify(activities=res, earlyTimeStamp=int(early_time_stamp), end=end)
+
+
+@app.route('/contentact/<aid>')
+@login_required
+def get_activity_detail(aid):
+    res = Activities.query.filter_by(aid=aid).first()
+
+    if not res:
+        abort(404)
+    if res.end_time<datetime.datetime.now() and res.join_time>datetime.datetime.now():
+        res_able=False
+    else:
+        res_able=True
+    return jsonify(detail=res.detail_info_act_with_user,res_able=res_able)
+
+
+@app.route('/commentAct/<aid>')
+@login_required
+def get_timeline_comment_act(aid):
+    # res = activitys.query.filter_by(aid=aid).first().general_info_dict_with_user
+    # if not res:
+    #     abort(404)
+    comments = ActivityComment.comments_dict_for_activity(aid)
+    # res['comments'] = comments
+    # return jsonify(res)
+    return jsonify(comments=comments)
+
+
+@app.route('/favAct', methods=['POST'])
+@login_required
+def add_fav_activity():
+    uid = g.user.uid
+    aid = request.form.get('aid')
+    if not aid:
+        abort(400)
+    try:
+        if not ActivityFav.query.filter_by(aid=aid, uid=uid).first():
+            new_fav = ActivityFav(aid, uid)
+            db.session.add(new_fav)
+            activity = Activities.query.filter_by(aid=aid).first()
+            activity.fav_count += 1
+            db.session.commit()
+        return jsonify(success=True)
+    except IntegrityError:
+        return jsonify(success=False)
+
+
+@app.route('/unfavact', methods=['POST'])
+@login_required
+def remove_fav_activity():
+    uid = g.user.uid
+    aid = request.form.get('aid')
+    if not aid:
+        abort(400)
+    try:
+        fav = ActivityFav.query.filter_by(aid=aid, uid=uid).first()
+        if fav:
+            activity = Activities.query.filter_by(aid=aid).first()
+            activity.fav_count -= 1
+            db.session.delete(fav)
+            db.session.commit()
+        return jsonify(success=True)
+    except IntegrityError:
+        return jsonify(success=False)
+
+
+@app.route('/favact_list')
+@login_required
+def get_favact_list():
+    fav_list = ActivityFav.query.filter_by(uid=g.user.uid).all()
+    fav_list_array = [each.aid for each in fav_list]
+    return jsonify(data=fav_list_array)
+
+
+@app.route('/favActivities_list')
+@login_required
+def get_favActivities_list():
+    fav_list = ActivityFav.query.filter_by(uid=g.user.uid).all()
+    res=[]
+    for each in fav_list:
+       item = Activities.query.filter_by(aid=each.aid).first()
+       res.append(item.general_info_dict_with_user)
+
+    return jsonify(data=res)
+
+
+@app.route('/myActivities_list')
+@login_required
+def get_myActivities_list():
+    Activities_list = Activities.query.filter_by(uid=g.user.uid).all()
+    res = [each.general_info_dict_with_user for each in Activities_list]
+    return jsonify(data=res)
+
+
+@app.route('/otherActivities_list/<uid>')
+@login_required
+def get_otherActivities_list(uid):
+    Activities_list = Activities.query.filter_by(uid=uid).all()
+    res = [each.general_info_dict_with_user for each in Activities_list]
+    return jsonify(data=res)
+
+
+@app.route('/favPeoAct_list/<aid>')
+@login_required
+def get_favPeo_list_act(aid):
+    fav_list = ActivityFav.query.filter_by(aid=aid).all()
+    fav_list_array = [{"uid": each.uid,
+                       "nickname": User.query.filter_by(uid=each.uid).first().nickname,
+                       "avatar": User.query.filter_by(uid=each.uid).first().avatar,
+                       } for each in fav_list]
+    return jsonify(data=fav_list_array)
+
+
+@app.route('/commentact', methods=['POST'])
+@login_required
+def add_comment_activity():
+    uid = g.user.uid
+    aid = request.form.get('aid')
+    text = request.form.get('text')
+    if not text:
+        return jsonify(success=False,msg="评论不能为空")
+    try:
+        new_comment = ActivityComment(aid, uid, text)
+        db.session.add(new_comment)
+        activity = Activities.query.filter_by(aid=aid).first()
+        activity.comment_count += 1
+        db.session.commit()
+    except IntegrityError:
+        return jsonify(success=False)
+    return jsonify(success=True)
+
+
+# @app.route('/delete/<aid>', methods=['Activities'])
+# @login_required
+# def delete_activity(aid):
+#     activity = Activities.query.filter_by(aid=aid).first()
+#     file_key = activity.picture
+#     if not activity or activity.uid != g.user.uid:
+#         abort(401)
+#     db.session.delete(activity)
+#     db.session.commit()
+#     delete_key(file_key)
+#     return jsonify(success=True)

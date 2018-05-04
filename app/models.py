@@ -295,6 +295,7 @@ class Activities(db.Model):
     rank = db.Column(db.Integer,)
     hide = db.Column(db.Boolean, default=False)
     registered = db.Column(db.Integer)
+    comment_count = db.Column(db.Integer)
 
     def __init__(self, uid, title, note, picture, address, start_time, phone, join_time,
                  end_time, activity_type, max_person, award, team_enable, upload_enable, organization):
@@ -316,6 +317,7 @@ class Activities(db.Model):
         self.create_time = datetime.now()
         self.view_count = 0
         self.registered = 0
+        self.comment_count = 0
 
         # self.rank = rank
         self.hide = False
@@ -333,6 +335,14 @@ class Activities(db.Model):
         return self.start_time.strftime('%Y-%m-%d %a %H:%M')
 
     @property
+    def end_time_str(self):
+        return self.end_time.strftime('%Y-%m-%d %a %H:%M')
+
+    @property
+    def join_time_str(self):
+        return self.join_time.strftime('%Y-%m-%d %a %H:%M')
+
+    @property
     def general_info_act_with_user(self):
         return {
             "aid": self.aid,
@@ -346,8 +356,83 @@ class Activities(db.Model):
             "registered": self.registered,
             "user": self.user_model.general_info_dict
         }
+
+    @property
+    def detail_info_act_with_user(self):
+        general_info = self.general_info_act_with_user
+        general_info.update({
+            "phone": self.phone,
+            "join_time": self.join_time_str,
+            "end_time": self.end_time_str,
+            "organization": self.organization,
+            "award": self.award,
+            "note": self.note,
+            "upload_enable":self.upload_enable,
+            "view_count":self.view_count,
+            "team_enable":self.team_enable
+        })
+        return general_info
     # def __repr__(self):
     #     return "{0} {1} {2}".format(self.activity_name, self.team_enable, self.upload_enable)
+
+
+class ActivityFav(db.Model):
+    aid = db.Column(db.Integer, db.ForeignKey('activities.fid'), primary_key=True)
+    uid = db.Column(db.Integer, db.ForeignKey('user.uid'), primary_key=True)
+    time = db.Column(db.Integer)
+
+    def __init__(self, fid, uid):
+        self.fid = fid
+        self.uid = uid
+        self.time = int(datetime.now().timestamp())
+
+
+class ActivityComment(db.Model):
+    cid = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    aid = db.Column(db.Integer, db.ForeignKey('activities.aid'))
+    uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
+    text = db.Column(db.Text)
+    create_time = db.Column(db.DateTime)
+
+    def __init__(self, aid, uid, text):
+        self.aid = aid
+        self.uid = uid
+        self.text = text
+        self.create_time = datetime.now()
+
+    @property
+    def create_time_str(self):
+        return self.create_time.strftime('%m/%d %H:%M')
+
+    @property
+    def general_info_dict(self):
+        return {
+            "cid": self.cid,
+            "text": self.text,
+            "createTime": self.create_time_str,
+            "fid": self.aid,
+            "picture": None
+        }
+
+    def info_dict_for_user(self, user, activities=None):
+        general_dict = self.general_info_dict
+        general_dict['user'] = user.general_info_dict
+        if activities:
+            general_dict['picture'] = activities.picture
+        return general_dict
+
+    @classmethod
+    def comments_dict_for_activity(cls, aid):
+        comments_arr = db.session.query(ActivityComment, User).filter(ActivityComment.aid == aid,
+                                                                      ActivityComment.uid == User.uid).all()
+        return [each[0].info_dict_for_user(each[1]) for each in comments_arr]
+
+    @classmethod
+    def comments_dict_for_uid(cls, uid):
+        comments_arr = db.session.query(ActivityComment, Activities, User).filter(Activities.uid == User.uid,
+                                                                                  ActivityComment.fid == Post.fid,
+                                                                                  Activities.uid == uid).all()
+        return [each[0].info_dict_for_user(each[2], post=each[1]) for each in comments_arr]
 
 
 class UploadHistory(db.Model):
