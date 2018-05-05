@@ -54,6 +54,35 @@ def sendActivity():
     return jsonify(success=True,aid=new_act.aid)
 
 
+@app.route('/activityHotlist')
+# @login_required
+def get_activityHotlist():
+    timestamp = request.args.get('timestamp')
+    if not timestamp:
+        timestamp = datetime.datetime.now()
+    else:
+        timestamp = datetime.datetime.fromtimestamp(int(timestamp))
+
+    activities = Activities.query.filter(Activities.create_time < timestamp).order_by(Activities.start_time.desc()).limit(4).all()
+
+    res =[]
+    for each in activities:
+        res.append(each.general_info_act_with_user)
+        each.view_count += 1
+
+    db.session.commit()
+    # view_count = [(each.view_count+=1) for each in activitys]
+    datetime.datetime.now().timestamp()
+
+    if len(activities) > 0:
+        end = False
+        early_time_stamp = activities[-1].create_time.timestamp()
+    else:
+        end = True
+        early_time_stamp = datetime.datetime.now().timestamp()
+    return jsonify(activities=res, earlyTimeStamp=int(early_time_stamp), end=end)
+
+
 @app.route('/activitylist')
 # @login_required
 def get_activitylist():
@@ -93,6 +122,8 @@ def get_activity_detail(aid):
         abort(404)
     if res.end_time<datetime.datetime.now() and res.join_time>datetime.datetime.now():
         res_able=False
+        res.reg_enable=False
+        db.session.commit()
     else:
         res_able=True
     return jsonify(detail=res.detail_info_act_with_user,res_able=res_able)
@@ -122,7 +153,7 @@ def add_fav_activity():
             new_fav = ActivityFav(aid, uid)
             db.session.add(new_fav)
             activity = Activities.query.filter_by(aid=aid).first()
-            activity.fav_count += 1
+            activity.registered += 1
             db.session.commit()
         return jsonify(success=True)
     except IntegrityError:
@@ -140,7 +171,7 @@ def remove_fav_activity():
         fav = ActivityFav.query.filter_by(aid=aid, uid=uid).first()
         if fav:
             activity = Activities.query.filter_by(aid=aid).first()
-            activity.fav_count -= 1
+            activity.registered -= 1
             db.session.delete(fav)
             db.session.commit()
         return jsonify(success=True)
@@ -163,7 +194,7 @@ def get_favActivities_list():
     res=[]
     for each in fav_list:
        item = Activities.query.filter_by(aid=each.aid).first()
-       res.append(item.general_info_dict_with_user)
+       res.append(item.general_info_act_with_user)
 
     return jsonify(data=res)
 

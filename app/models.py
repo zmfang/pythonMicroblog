@@ -288,7 +288,7 @@ class Activities(db.Model):
     activity_type = db.Column(db.Text)
     max_person = db.Column(db.Integer)
     award = db.Column(db.Integer)
-    # reg_enable = db.Column(db.Boolean, default=True)
+    reg_enable = db.Column(db.Boolean, default=True)
     team_enable = db.Column(db.Boolean, default=False)
     upload_enable = db.Column(db.Boolean, default=False)
     view_count=db.Column(db.Integer)
@@ -298,7 +298,7 @@ class Activities(db.Model):
     comment_count = db.Column(db.Integer)
 
     def __init__(self, uid, title, note, picture, address, start_time, phone, join_time,
-                 end_time, activity_type, max_person, award, team_enable, upload_enable, organization):
+                 end_time, activity_type, max_person, award, team_enable, upload_enable, organization,reg_enable):
         self.uid = uid
         self.title = title
         self.note = note
@@ -314,6 +314,7 @@ class Activities(db.Model):
         self.team_enable = team_enable
         self.upload_enable = upload_enable
         self.organization = organization
+        self.reg_enable = reg_enable
         self.create_time = datetime.now()
         self.view_count = 0
         self.registered = 0
@@ -348,13 +349,15 @@ class Activities(db.Model):
             "aid": self.aid,
             "title": self.title,
             "picture": self.picture,
+            "award":self.award,
             "start_time": self.start_time_str,
             # "pictureRatio": round(self.picture_ratio, 2),
             "address": self.address,
             "createTime": self.create_time_str,
             "max_person": self.max_person,
             "registered": self.registered,
-            "user": self.user_model.general_info_dict
+            "user": self.user_model.general_info_dict,
+            "reg_enable":self.reg_enable
         }
 
     @property
@@ -377,12 +380,12 @@ class Activities(db.Model):
 
 
 class ActivityFav(db.Model):
-    aid = db.Column(db.Integer, db.ForeignKey('activities.fid'), primary_key=True)
+    aid = db.Column(db.Integer, db.ForeignKey('activities.aid'), primary_key=True)
     uid = db.Column(db.Integer, db.ForeignKey('user.uid'), primary_key=True)
     time = db.Column(db.Integer)
 
-    def __init__(self, fid, uid):
-        self.fid = fid
+    def __init__(self, aid, uid):
+        self.aid = aid
         self.uid = uid
         self.time = int(datetime.now().timestamp())
 
