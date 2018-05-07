@@ -9,7 +9,7 @@ from lxml.doctestcompare import strip
 from app.emails import follower_notification
 from config import POSTS_PER_PAGE, MAX_SEARCH_RESULTS
 from ..forms import LoginForm, SignUpForm, PublishBlogForm, AboutMeForm, SearchForm
-from ..models import User, ROLE_USER, login_required
+from ..models import User, ROLE_USER, login_required, followers
 from app import babel
 from config import LANGUAGES
 from flask import Blueprint, jsonify, request, g
@@ -140,15 +140,15 @@ def register():
     return jsonify(s)
 
 
-@app.before_request
-def before_request():
-    g.user = current_user
-    if g.user.is_authenticated:
-        g.user.last_seen = datetime.datetime.utcnow()
-        db.session.add(g.user)
-        db.session.commit()
-        g.search_form = SearchForm()
-    g.locale = get_locale()
+# @app.before_request
+# def before_request():
+#     g.user = current_user
+#     if g.user.is_authenticated:
+#         g.user.last_seen = datetime.datetime.utcnow()
+#         db.session.add(g.user)
+#         db.session.commit()
+#         g.search_form = SearchForm()
+#     g.locale = get_locale()
 
 
 @app.route('/user/<int:user_id>', methods=["POST", "GET"])
@@ -222,42 +222,43 @@ def about_me(user_id):
 @app.route("/follow/<int:user_id>")
 @login_required
 def follow(user_id):
-    user = User.query.filter_by(id=user_id).first()
+    user = User.query.filter_by(uid=user_id).first()
     if user is None:
         flash("User %d not found." % user_id)
-        return redirect(url_for("index"))
-    if user == g.user:
-        flash("You can\'t follow yourself!")
-        return redirect(url_for("users", user_id=user_id))
+        meg=str(user_id)+'未找到'
+        return jsonify(success=False,meg=meg)
+    if user.uid == g.user.uid:
+        return jsonify(success=False,meg="You can\'t follow yourself!")
     u = g.user.follow(user)
     if u is None:
-        flash("Cannot follow" + user.nickname + '.')
-        return redirect(url_for("users", user_id=user_id))
+        meg="Cannot follow" + user.nickname + '.'
+        return jsonify(success=False,meg=meg)
     db.session.add(u)
     db.session.commit()
-    flash("You are now following" + user.nickname + "!")
-    follower_notification(user, g.user)
-    return redirect(url_for("users", user_id=user_id))
+    # flash("You are now following" + user.nickname + "!")
+    # 发邮件功能
+    # follower_notification(user, g.user)
+    return jsonify(success=True,meg="关注成功")
 
 
 @app.route('/unfollow/<int:user_id>')
 @login_required
 def unfollow(user_id):
-    user = User.query.filter_by(id=user_id).first()
+    user = User.query.filter_by(uid=user_id).first()
     if user is None:
-        flash('User %d not found.' % user_id)
-        return redirect(url_for('index'))
-    if user == g.user:
-        flash('You can\'t unfollow yourself!')
-        return redirect(url_for('users', user_id=user_id))
+        meg='User %d not found.' % user_id
+        return jsonify(success=False,meg=meg)
+    if user.uid == g.user.uid:
+        meg='You can\'t unfollow yourself!'
+        return jsonify(success=False,meg=meg)
     u = g.user.unfollow(user)
     if u is None:
-        flash('Cannot unfollow ' + user.nickname + '.')
-        return redirect(url_for('users', user_id=user_id))
+        meg='Cannot unfollow ' + user.nickname + '.'
+        return jsonify(success=False,meg=meg)
     db.session.add(u)
     db.session.commit()
-    flash('You have stopped following ' + user.nickname + '.')
-    return redirect(url_for('users', user_id=user_id))
+    # flash('You have stopped following ' + user.nickname + '.')
+    return jsonify(success=True,meg="取消关注")
 
 
 @app.route('/search', methods=['POST'])
@@ -340,13 +341,36 @@ def get_person_center():
     fav_count = FeedsFav.query.join(Post).filter(Post.uid == user.uid).count()
     comment_count = FeedsComment.query.join(Post).filter(Post.uid == user.uid).count()
     posts_list = [{"fid": each.fid, "imgKey": each.picture} for each in posts]
+    followothe_count = User.query.join(followers,(followers.c.followed_id == User.uid)).filter(followers.c.follower_id == user.uid).count()
+    follow_me = User.query.join(followers, (followers.c.follower_id == User.uid)).filter(
+        followers.c.followed_id == g.user.uid).count()
     profile = {
         "favCount": fav_count,
         "commentCount": comment_count,
-        "feeds": posts_list
+        "feeds": posts_list,
+        "follow_count":followothe_count,
+        "follow_me":follow_me,
     }
     return jsonify(profile)
 
+
+@app.route('/followother_list')
+@login_required
+def get_followother_list():
+
+    follow_me = User.query.join(followers, (followers.c.followed_id == User.uid)).filter(
+        followers.c.follower_id == g.user.uid)
+    res=[each.general_info_dict for each in follow_me]
+    return jsonify(data=res)
+
+
+@app.route('/followme_list')
+@login_required
+def get_followme_list():
+    follow_me = User.query.join(followers, (followers.c.follower_id == User.uid)).filter(
+        followers.c.followed_id == g.user.uid)
+    res=[each.general_info_dict for each in follow_me]
+    return jsonify(data=res)
 
 
 @app.route('/comments_me')
@@ -381,18 +405,42 @@ def get_stranger_center(uid):
     fav_count = FeedsFav.query.join(Post).filter(Post.uid == user.uid).count()
     comment_count = FeedsComment.query.join(Post).filter(Post.uid == user.uid).count()
     posts_list = [{"fid": each.fid, "imgKey": each.picture} for each in posts]
+    followothe_count = User.query.join(followers, (followers.c.followed_id == User.uid)).filter(
+        followers.c.follower_id == uid).count()
+    follow_me = User.query.join(followers, (followers.c.follower_id == User.uid)).filter(
+        followers.c.followed_id == uid).count()
     profile = {
         "profile":{
             "nickname": user.nickname,
             "avatar": user.avatar,
             "introduce": user.introduce,
             "mail": user.mail,
-            # "uid": user.uid,
+
+            "uid": user.uid,
             # "token": user.generate_auth_token()
         },
         "favCount": fav_count,
         "commentCount": comment_count,
-        "feeds": posts_list
+        "feeds": posts_list,
+        "isfollowing": g.user.is_following(user),
+        "follow_count": followothe_count,
+        "follow_me": follow_me,
     }
     return jsonify(profile)
+
+
+@app.route('/followedposts')
+@login_required
+def get_followedposts():
+   post=g.user.followed_posts()
+   res = [each.general_info_dict_with_user for each in post]
+   return jsonify(data=res)
+
+
+@app.route('/followedacts')
+@login_required
+def get_followedacts():
+   act=g.user.followed_acts()
+   res = [each.general_info_act_with_user for each in act]
+   return jsonify(data=res)
 

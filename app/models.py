@@ -49,7 +49,7 @@ class User(db.Model, UserMixin):
     qq = db.Column(db.Text)
     phone = db.Column(db.Text)
     team = db.Column(db.Text)
-    activity = db.Column(db.VARCHAR(10), db.ForeignKey('activities.activity_name'))
+    activity = db.Column(db.VARCHAR(10), db.ForeignKey('activities.aid'))
 
     #  添加和移除“关注者”功能
     def follow(self, user):
@@ -66,11 +66,17 @@ class User(db.Model, UserMixin):
         return self.followed.filter(followers.c.followed_id == user.uid).count() > 0
 
     # 查询关注者所发布博客
-    # def followed_posts(self):
-    #     return Post.query.join(followers,
-    #                            (followers.c.followed_id == Post.user_id)) \
-    #         .filter(followers.c.follower_id == self.uid) \
-    #         .order_by(Post.create_time.desc())
+    def followed_posts(self):
+        return Post.query.join(followers,
+                               (followers.c.followed_id == Post.uid)) \
+            .filter(followers.c.follower_id == self.uid) \
+            .order_by(Post.create_time.desc())
+
+    def followed_acts(self):
+        return Activities.query.join(followers,
+                               (followers.c.followed_id == Activities.uid)) \
+            .filter(followers.c.follower_id == self.uid) \
+            .order_by(Activities.create_time.desc())
 
     # def is_authenticated(self):
     #     return True  # 除非表示用户的对象因为某些原因不允许被认证。
@@ -298,7 +304,7 @@ class Activities(db.Model):
     comment_count = db.Column(db.Integer)
 
     def __init__(self, uid, title, note, picture, address, start_time, phone, join_time,
-                 end_time, activity_type, max_person, award, team_enable, upload_enable, organization,reg_enable):
+                 end_time, activity_type, max_person, award, team_enable, upload_enable, organization,):
         self.uid = uid
         self.title = title
         self.note = note
@@ -314,7 +320,7 @@ class Activities(db.Model):
         self.team_enable = team_enable
         self.upload_enable = upload_enable
         self.organization = organization
-        self.reg_enable = reg_enable
+        self.reg_enable = 1
         self.create_time = datetime.now()
         self.view_count = 0
         self.registered = 0

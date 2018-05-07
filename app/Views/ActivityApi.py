@@ -63,7 +63,7 @@ def get_activityHotlist():
     else:
         timestamp = datetime.datetime.fromtimestamp(int(timestamp))
 
-    activities = Activities.query.filter(Activities.create_time < timestamp).order_by(Activities.start_time.desc()).limit(4).all()
+    activities = Activities.query.filter(Activities.create_time < timestamp).order_by(Activities.create_time.desc()).limit(4).all()
 
     res =[]
     for each in activities:
@@ -72,7 +72,6 @@ def get_activityHotlist():
 
     db.session.commit()
     # view_count = [(each.view_count+=1) for each in activitys]
-    datetime.datetime.now().timestamp()
 
     if len(activities) > 0:
         end = False
@@ -88,12 +87,52 @@ def get_activityHotlist():
 def get_activitylist():
     timestamp = request.args.get('timestamp')
     activity_type = request.args.get('activity_type')
-    if not timestamp:
-        timestamp = datetime.datetime.now()
-    else:
-        timestamp = datetime.datetime.fromtimestamp(int(timestamp))
+    page = int(request.args.get('page','0'))
+    orderby = request.args.get('orderby')
+    if not orderby:
 
-    activities = Activities.query.filter(Activities.activity_type == activity_type,Activities.create_time < timestamp).order_by(Activities.start_time.desc()).limit(10).all()
+        if not timestamp:
+            timestamp = datetime.datetime.now()
+        else:
+            timestamp = datetime.datetime.fromtimestamp(int(timestamp))
+        if  activity_type=='综合':
+            activities = Activities.query.filter(Activities.create_time < timestamp).order_by(
+                Activities.create_time.desc()).limit(4).all()
+        else:
+            activities = Activities.query.filter(Activities.activity_type == activity_type,Activities.create_time < timestamp).order_by(Activities.create_time.desc()).limit(4).all()
+    elif orderby=='发布时间':
+
+        if not timestamp:
+            timestamp = datetime.datetime.now()
+        else:
+            timestamp = datetime.datetime.fromtimestamp(int(timestamp))
+        if activity_type=='综合':
+            activities = Activities.query.order_by(
+                Activities.create_time.desc()).offset(page*5).limit(5).all()
+        else:
+            activities = Activities.query.filter(Activities.activity_type == activity_type,
+                                             Activities.create_time < timestamp).order_by(
+            Activities.create_time.desc()).limit(4).all()
+    elif orderby=='报名截至时间':
+        if activity_type=='综合':
+            activities = Activities.query.order_by(
+                Activities.end_time.asc()).offset(page*5).limit(5).all()
+            print(activities)
+        else:
+            activities = Activities.query.filter(Activities.activity_type == activity_type,
+                                             ).order_by(
+            Activities.end_time.asc()).offset(page * 5).limit(5).all()
+
+    elif orderby == '活动开始时间':
+
+        if activity_type=='综合':
+            activities = Activities.query.order_by(
+                Activities.start_time.asc()).offset(page*5).limit(5).all()
+            print(activities)
+        else:
+            activities = Activities.query.filter(Activities.activity_type == activity_type,
+                                             ).order_by(
+            Activities.start_time.asc()).offset(page * 5).limit(5).all()
 
     res =[]
     for each in activities:
@@ -102,7 +141,7 @@ def get_activitylist():
 
     db.session.commit()
     # view_count = [(each.view_count+=1) for each in activitys]
-    datetime.datetime.now().timestamp()
+
 
     if len(activities) > 0:
         end = False
@@ -120,7 +159,7 @@ def get_activity_detail(aid):
 
     if not res:
         abort(404)
-    if res.end_time<datetime.datetime.now() and res.join_time>datetime.datetime.now():
+    if res.end_time<datetime.datetime.now() or res.join_time>datetime.datetime.now():
         res_able=False
         res.reg_enable=False
         db.session.commit()
@@ -191,10 +230,10 @@ def get_favact_list():
 @login_required
 def get_favActivities_list():
     fav_list = ActivityFav.query.filter_by(uid=g.user.uid).all()
-    res=[]
+    res = []
     for each in fav_list:
-       item = Activities.query.filter_by(aid=each.aid).first()
-       res.append(item.general_info_act_with_user)
+        item = Activities.query.filter_by(aid=each.aid).first()
+        res.append(item.general_info_act_with_user)
 
     return jsonify(data=res)
 
