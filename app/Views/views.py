@@ -2,18 +2,21 @@ import uuid
 from datetime import datetime
 
 # from flask import Response, Flask
-from flask import render_template, flash, redirect, session, url_for, request, g
+import xlwt as xlwt
+from flask import render_template, flash, redirect, session, url_for, request, g, send_file, abort
 from flask.ext.login import login_user, logout_user, current_user, login_required
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from lxml.doctestcompare import strip
 
 from app.emails import follower_notification
 from config import POSTS_PER_PAGE, MAX_SEARCH_RESULTS
 from ..forms import LoginForm, SignUpForm, PublishBlogForm, AboutMeForm, SearchForm
-from ..models import User, ROLE_USER, login_required, followers
+from ..models import User, ROLE_USER, login_required, followers, Activities, ActivityFav
 from app import babel
 from config import LANGUAGES
 from flask import Blueprint, jsonify, request, g
 from ..models import Post, FeedsFav, FeedsComment
+from io import BytesIO as StringIO
 
 # app = Blueprint('userApi', __name__)
 
@@ -56,9 +59,9 @@ from app import app, db, lm
 
 
 # 用于从数据库加载用户，这个函数将会被 Flask-Login 使用
-@lm.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+# @lm.user_loader
+# def load_user(user_id):
+#     return User.query.get(int(user_id))
 
 
 @app.route('/login', methods=['POST'])
@@ -74,7 +77,11 @@ def login():
             "avatar": user.avatar,
             "introduce": user.introduce,
             "mail": user.mail,
-            "uid": user.uid
+            "uid": user.uid,
+            "name": user.name,
+            "stu_code": user.stu_code,
+            "phone": user.phone,
+            "qq": user.qq,
         }
         return jsonify(success=True, token=user.generate_auth_token(), profile=profile)
     return jsonify(success=False, msg='用户名或密码错误')
@@ -139,7 +146,7 @@ def register():
     s['token'] = new_user.generate_auth_token()
     return jsonify(s)
 
-
+#
 # @app.before_request
 # def before_request():
 #     g.user = current_user
@@ -273,16 +280,18 @@ def search():
 @app.route("/search_results/<find>")
 @login_required
 def search_results(find):
-    results = Post.query.whoosh_search(find, MAX_SEARCH_RESULTS)
-    return render_template("search_results.html",
-                           results=results,
-                           find=find
-                           )
+    print(find)
+    results = Post.query.whoosh_search('2',)
+    # return render_template("search_results.html",
+    #                        results=results,
+    #                        find=find
+    #                        )
+    return jsonify(find=find,results=results)
 
 
-@babel.localeselector
-def get_locale():
-    return request.accept_languages.best_match(LANGUAGES.keys())
+# @babel.localeselector
+# def get_locale():
+#     return request.accept_languages.best_match(LANGUAGES.keys())
 
 
 # 更新个人资料
@@ -302,6 +311,27 @@ def update_profile():
     # print(avatar)
     g.user.nickname = nickname
     g.user.introduce = introduce
+
+    db.session.commit()
+    return jsonify(success=True)
+
+
+@app.route('/update_detail', methods=['POST'])
+@login_required
+def update_detail():
+
+    # print(request.files)
+    name = request.form.get('name')
+    phone = request.form.get('phone')
+    stu_code = request.form.get('stu_code')
+    qq = request.form.get('qq')
+
+    # avatar = request.form.get('avatar')
+    # print(avatar)
+    g.user.name = name
+    g.user.phone = phone
+    g.user.stu_code = stu_code
+    g.user.qq = qq
 
     db.session.commit()
     return jsonify(success=True)
@@ -328,7 +358,11 @@ def get_profile():
         "introduce": user.introduce,
         "mail": user.mail,
         "uid": user.uid,
-        "token": user.generate_auth_token()
+        "token": user.generate_auth_token(),
+        "name":user.name,
+        "stu_code":user.stu_code,
+        "phone":user.phone,
+        "qq":user.qq,
     }
     return jsonify(profile)
 
@@ -344,31 +378,33 @@ def get_person_center():
     followothe_count = User.query.join(followers,(followers.c.followed_id == User.uid)).filter(followers.c.follower_id == user.uid).count()
     follow_me = User.query.join(followers, (followers.c.follower_id == User.uid)).filter(
         followers.c.followed_id == g.user.uid).count()
+    Activities_list = Activities.query.filter_by(uid=user.uid).count()
     profile = {
         "favCount": fav_count,
         "commentCount": comment_count,
         "feeds": posts_list,
         "follow_count":followothe_count,
         "follow_me":follow_me,
+        "Activities_list":Activities_list
     }
     return jsonify(profile)
 
 
-@app.route('/followother_list')
+@app.route('/followother_list/<int:uid>')
 @login_required
-def get_followother_list():
+def get_followother_list(uid):
 
     follow_me = User.query.join(followers, (followers.c.followed_id == User.uid)).filter(
-        followers.c.follower_id == g.user.uid)
+        followers.c.follower_id == uid)
     res=[each.general_info_dict for each in follow_me]
     return jsonify(data=res)
 
 
-@app.route('/followme_list')
+@app.route('/followme_list/<int:uid>')
 @login_required
-def get_followme_list():
+def get_followme_list(uid):
     follow_me = User.query.join(followers, (followers.c.follower_id == User.uid)).filter(
-        followers.c.followed_id == g.user.uid)
+        followers.c.followed_id == uid)
     res=[each.general_info_dict for each in follow_me]
     return jsonify(data=res)
 
@@ -388,13 +424,15 @@ def get_like_me():
     arr = db.session.query(FeedsFav, Post, User).filter(FeedsFav.uid == User.uid,
                                                         Post.fid == FeedsFav.fid,
                                                         Post.uid == user.uid
-                                                        ).all()
+                                                        ).order_by(FeedsFav.time.desc()).all()
     data = [{"fid": each[1].fid,
              "content": each[1].content,
              "picture": each[1].picture,
-             "user": each[2].general_info_dict} for each in arr]
+             "user": each[2].general_info_dict,
+             "creat_time":each[0].create_time_str,
+             } for each in arr]
 
-    return jsonify(data=data)
+    return jsonify(data=data,)
 
 
 @app.route('/stranger_center/<uid>')
@@ -409,6 +447,7 @@ def get_stranger_center(uid):
         followers.c.follower_id == uid).count()
     follow_me = User.query.join(followers, (followers.c.follower_id == User.uid)).filter(
         followers.c.followed_id == uid).count()
+    Activities_list = Activities.query.filter_by(uid=uid).count()
     profile = {
         "profile":{
             "nickname": user.nickname,
@@ -425,6 +464,7 @@ def get_stranger_center(uid):
         "isfollowing": g.user.is_following(user),
         "follow_count": followothe_count,
         "follow_me": follow_me,
+        'Activities_list':Activities_list,
     }
     return jsonify(profile)
 
@@ -432,15 +472,69 @@ def get_stranger_center(uid):
 @app.route('/followedposts')
 @login_required
 def get_followedposts():
-   post=g.user.followed_posts()
-   res = [each.general_info_dict_with_user for each in post]
-   return jsonify(data=res)
+
+    page = int(request.args.get('page', '0'))
+    post=g.user.followed_posts(page)
+    res = [each.general_info_dict_with_user for each in post]
+    if len(post) > 0:
+        end = False
+
+    else:
+        end = True
+
+    return jsonify(data=res,end=end)
 
 
 @app.route('/followedacts')
 @login_required
 def get_followedacts():
-   act=g.user.followed_acts()
-   res = [each.general_info_act_with_user for each in act]
-   return jsonify(data=res)
+    page = int(request.args.get('page', '0'))
+    act=g.user.followed_acts(page)
+    res = [each.general_info_act_with_user for each in act]
+    return jsonify(data=res)
 
+
+@app.route('/admin/export')
+def generate_excel():
+    # act_name = request.args.get('act')
+    file_token=request.args.get('filetoken')
+
+    if not file_token:
+        abort(401)
+    s = Serializer("zmfang")
+    try:
+        data = s.loads(file_token)
+    except Exception as err:
+
+        abort(401) # valid token, but expired
+
+    aid = data['id']
+    # members = User.query.filter_by(activity=aid).all()
+    fav_list = ActivityFav.query.filter_by(aid=aid).all()
+    # activity = Activities.query.filter_by(aid=aid).first().title
+    # print(activity)
+    file = xlwt.Workbook()
+    table = file.add_sheet("sheet")
+    title_row = ['姓名', '学号', 'qq', 'phone', '团队', '昵称']
+    for col in range(0, len(title_row)):
+        table.write(0, col, title_row[col])
+    row = 0
+    for each in fav_list:
+        row += 1
+        person = User.query.filter_by(uid=each.uid).first()
+        # activity= Activities.query.filter_by(activity=person.aid).first().title
+        table.write(row, 0, person.name)
+        table.write(row, 1, person.stu_code)
+        table.write(row, 2, person.qq)
+        table.write(row, 3, person.phone)
+        table.write(row, 4, person.team)
+        table.write(row, 5, person.nickname)
+        # if person.has_submit:
+        #     table.write(row, 6, "YES")
+
+    sio = StringIO()
+    file.save(sio)
+    sio.seek(0)
+    return send_file(sio,
+                     attachment_filename="act.xls",
+                     as_attachment=True)

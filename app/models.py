@@ -16,6 +16,7 @@ from app import app as parent_app
 import sys
 from app import db
 import flask_whooshalchemyplus
+# import flask.ext.whooshalchemy as whooshalchemy
 
 ROLE_USER = 0
 ROLE_ADMIN = 1
@@ -66,17 +67,18 @@ class User(db.Model, UserMixin):
         return self.followed.filter(followers.c.followed_id == user.uid).count() > 0
 
     # 查询关注者所发布博客
-    def followed_posts(self):
+    def followed_posts(self,page):
         return Post.query.join(followers,
                                (followers.c.followed_id == Post.uid)) \
             .filter(followers.c.follower_id == self.uid) \
-            .order_by(Post.create_time.desc())
+            .order_by(Post.create_time.desc()).offset(page * 5).limit(5).all()
 
-    def followed_acts(self):
+
+    def followed_acts(self,page):
         return Activities.query.join(followers,
                                (followers.c.followed_id == Activities.uid)) \
             .filter(followers.c.follower_id == self.uid) \
-            .order_by(Activities.create_time.desc())
+            .order_by(Activities.create_time.desc()).offset(page * 5).limit(5).all()
 
     # def is_authenticated(self):
     #     return True  # 除非表示用户的对象因为某些原因不允许被认证。
@@ -227,6 +229,12 @@ class FeedsFav(db.Model):
         self.uid = uid
         self.time = int(datetime.now().timestamp())
 
+    @property
+    def create_time_str(self):
+        dateArray = datetime.utcfromtimestamp(self.time)
+        return  dateArray.strftime("%Y-%m-%d %H:%M:%S")
+        # self.time.strftime('%Y/%m/%d %H:%M:%S')
+
 
 class FeedsComment(db.Model):
     cid = db.Column(db.Integer, autoincrement=True, primary_key=True)
@@ -272,7 +280,7 @@ class FeedsComment(db.Model):
     def comments_dict_for_uid(cls, uid):
         comments_arr = db.session.query(FeedsComment, Post, User).filter(Post.uid == User.uid,
                                                                          FeedsComment.fid == Post.fid,
-                                                                         Post.uid == uid).all()
+                                                                         Post.uid == uid).order_by(FeedsComment.create_time.desc()).all()
         return [each[0].info_dict_for_user(each[2], post=each[1]) for each in comments_arr]
 
 
@@ -296,6 +304,7 @@ class Activities(db.Model):
     award = db.Column(db.Integer)
     reg_enable = db.Column(db.Boolean, default=True)
     team_enable = db.Column(db.Boolean, default=False)
+    # 改为是否需要实名
     upload_enable = db.Column(db.Boolean, default=False)
     view_count=db.Column(db.Integer)
     rank = db.Column(db.Integer,)
@@ -328,6 +337,10 @@ class Activities(db.Model):
 
         # self.rank = rank
         self.hide = False
+
+    def generate_authfile_token(self, expiration=300):
+        s = Serializer("zmfang", expires_in=expiration)
+        return (s.dumps({'id': self.aid})).decode()
 
     @property
     def create_time_str(self):
@@ -383,6 +396,8 @@ class Activities(db.Model):
         return general_info
     # def __repr__(self):
     #     return "{0} {1} {2}".format(self.activity_name, self.team_enable, self.upload_enable)
+
+
 
 
 class ActivityFav(db.Model):
@@ -464,6 +479,7 @@ class Admins(db.Model):
     user = db.Column(db.VARCHAR, primary_key=True)
     passwd = db.Column(db.Text)
 
-
+#
+# whooshalchemy.whoosh_index(parent_app, Post)
 flask_whooshalchemyplus.init_app(parent_app)
 

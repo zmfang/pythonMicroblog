@@ -115,9 +115,9 @@ def get_activitylist():
             Activities.create_time.desc()).limit(4).all()
     elif orderby=='报名截至时间':
         if activity_type=='综合':
-            activities = Activities.query.order_by(
+            activities = Activities.query.filter(Activities.reg_enable==True).order_by(
                 Activities.end_time.asc()).offset(page*5).limit(5).all()
-            print(activities)
+
         else:
             activities = Activities.query.filter(Activities.activity_type == activity_type,
                                              ).order_by(
@@ -156,16 +156,20 @@ def get_activitylist():
 @login_required
 def get_activity_detail(aid):
     res = Activities.query.filter_by(aid=aid).first()
-
+    uid = g.user.uid
+    file_token=''
     if not res:
         abort(404)
+
+    if res.uid==uid:
+        file_token=res.generate_authfile_token()
     if res.end_time<datetime.datetime.now() or res.join_time>datetime.datetime.now():
         res_able=False
         res.reg_enable=False
         db.session.commit()
     else:
         res_able=True
-    return jsonify(detail=res.detail_info_act_with_user,res_able=res_able)
+    return jsonify(detail=res.detail_info_act_with_user,res_able=res_able,file_token=file_token)
 
 
 @app.route('/commentAct/<aid>')
@@ -241,19 +245,19 @@ def get_favActivities_list():
 @app.route('/myActivities_list')
 @login_required
 def get_myActivities_list():
-    Activities_list = Activities.query.filter_by(uid=g.user.uid).all()
-    res = [each.general_info_dict_with_user for each in Activities_list]
+    Activities_list = Activities.query.filter_by(uid=g.user.uid).order_by(Activities.create_time.desc()).all()
+    res = [each.general_info_act_with_user for each in Activities_list]
     return jsonify(data=res)
 
-
+# 用户发布活动列表
 @app.route('/otherActivities_list/<uid>')
 @login_required
 def get_otherActivities_list(uid):
-    Activities_list = Activities.query.filter_by(uid=uid).all()
-    res = [each.general_info_dict_with_user for each in Activities_list]
+    Activities_list = Activities.query.filter_by(uid=uid).order_by(Activities.create_time.desc()).all()
+    res = [each.general_info_act_with_user for each in Activities_list]
     return jsonify(data=res)
 
-
+# 某活动报名人员列表
 @app.route('/favPeoAct_list/<aid>')
 @login_required
 def get_favPeo_list_act(aid):

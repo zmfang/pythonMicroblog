@@ -141,7 +141,7 @@ def get_favpost_list():
 @app.route('/myPost_list')
 @login_required
 def get_mypost_list():
-    post_list = Post.query.filter_by(uid=g.user.uid).all()
+    post_list = Post.query.filter_by(uid=g.user.uid).order_by(Post.create_time.desc()).all()
     res = [each.general_info_dict_with_user for each in post_list]
     return jsonify(data=res)
 
@@ -149,7 +149,7 @@ def get_mypost_list():
 @app.route('/otherPost_list/<uid>')
 @login_required
 def get_otherpost_list(uid):
-    post_list = Post.query.filter_by(uid=uid).all()
+    post_list = Post.query.filter_by(uid=uid).order_by(Post.create_time.desc()).all()
     res = [each.general_info_dict_with_user for each in post_list]
     return jsonify(data=res)
 
