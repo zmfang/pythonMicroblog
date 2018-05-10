@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, g, abort
-from app import app, db, lm
+from app import app, db
 from ..models import User, login_required
 from ..models import Post, FeedsComment, FeedsFav
 from sqlalchemy.exc import IntegrityError

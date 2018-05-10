@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, g, abort
-from app import app, db, lm
+from app import app, db
 import time
 from ..models import User, login_required, Activities
 from ..models import Activities, ActivityComment, ActivityFav
@@ -113,7 +113,7 @@ def get_activitylist():
             activities = Activities.query.filter(Activities.activity_type == activity_type,
                                              Activities.create_time < timestamp).order_by(
             Activities.create_time.desc()).limit(4).all()
-    elif orderby=='报名截至时间':
+    elif orderby=='报名截止时间':
         if activity_type=='综合':
             activities = Activities.query.filter(Activities.reg_enable==True).order_by(
                 Activities.end_time.asc()).offset(page*5).limit(5).all()
@@ -161,6 +161,9 @@ def get_activity_detail(aid):
     if not res:
         abort(404)
 
+    fav_status = ActivityFav.query.filter_by(aid=res.aid,uid=g.user.uid).first()
+    team_info = fav_status.team_info if fav_status else ""
+
     if res.uid==uid:
         file_token=res.generate_authfile_token()
     if res.end_time<datetime.datetime.now() or res.join_time>datetime.datetime.now():
@@ -169,7 +172,7 @@ def get_activity_detail(aid):
         db.session.commit()
     else:
         res_able=True
-    return jsonify(detail=res.detail_info_act_with_user,res_able=res_able,file_token=file_token)
+    return jsonify(detail=res.detail_info_act_with_user,res_able=res_able,file_token=file_token,team_info=team_info)
 
 
 @app.route('/commentAct/<aid>')
@@ -189,11 +192,12 @@ def get_timeline_comment_act(aid):
 def add_fav_activity():
     uid = g.user.uid
     aid = request.form.get('aid')
+    team_info=request.form.get('teamInfo')
     if not aid:
         abort(400)
     try:
         if not ActivityFav.query.filter_by(aid=aid, uid=uid).first():
-            new_fav = ActivityFav(aid, uid)
+            new_fav = ActivityFav(aid, uid,team_info)
             db.session.add(new_fav)
             activity = Activities.query.filter_by(aid=aid).first()
             activity.registered += 1

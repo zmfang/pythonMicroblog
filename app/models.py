@@ -1,11 +1,10 @@
-#-*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import functools
 from datetime import datetime
 
 from flask import request, jsonify, g
-from flask_login import UserMixin
-from flask_login._compat import unicode
+
 from hashlib import md5
 
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
@@ -15,12 +14,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app import app as parent_app
 import sys
 from app import db
-import flask_whooshalchemyplus
-# import flask.ext.whooshalchemy as whooshalchemy
+
 
 ROLE_USER = 0
 ROLE_ADMIN = 1
-
 
 followers = db.Table('followers',
                      db.Column('follower_id', db.Integer, db.ForeignKey('user.uid')),
@@ -28,8 +25,8 @@ followers = db.Table('followers',
                      )
 
 
-class User(db.Model, UserMixin):
-    uid = db.Column(db.Integer,autoincrement=True, primary_key=True)
+class User(db.Model):
+    uid = db.Column(db.Integer, autoincrement=True, primary_key=True)
     nickname = db.Column(db.String(64), unique=True)
     mail = db.Column(db.String(120), unique=True)
     password = db.Column(db.Text)
@@ -67,16 +64,15 @@ class User(db.Model, UserMixin):
         return self.followed.filter(followers.c.followed_id == user.uid).count() > 0
 
     # 查询关注者所发布博客
-    def followed_posts(self,page):
+    def followed_posts(self, page):
         return Post.query.join(followers,
                                (followers.c.followed_id == Post.uid)) \
             .filter(followers.c.follower_id == self.uid) \
             .order_by(Post.create_time.desc()).offset(page * 5).limit(5).all()
 
-
-    def followed_acts(self,page):
+    def followed_acts(self, page):
         return Activities.query.join(followers,
-                               (followers.c.followed_id == Activities.uid)) \
+                                     (followers.c.followed_id == Activities.uid)) \
             .filter(followers.c.follower_id == self.uid) \
             .order_by(Activities.create_time.desc()).offset(page * 5).limit(5).all()
 
@@ -96,18 +92,12 @@ class User(db.Model, UserMixin):
     #         return str(self.id)
 
     # cls为类，self为类的实例，相当于this
-    def __init__(self, mail, password, nickname,name, stu_code, qq, phone, activity):
+    def __init__(self, mail, password, nickname):
         self.mail = mail
         self.password = generate_password_hash(password)
         self.nickname = nickname
         self.introduce = ''
         self.token_version = 0
-        self.name = name
-        self.stu_code = stu_code
-        self.qq = qq
-        self.phone = phone
-        self.activity = activity
-
         # self.avatar = 'avatar_default.png'
 
     def update_password(self, password):
@@ -174,11 +164,11 @@ def login_required(func):
 
 class Post(db.Model):
     __searchable__ = ["content"]
-    fid = db.Column(db.Integer, primary_key=True,autoincrement=True)
+    fid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
     content = db.Column(db.Text)
     picture = db.Column(db.Text, nullable=True)
-    view_count=db.Column(db.Integer)
+    view_count = db.Column(db.Integer)
     # picture==save_name
 
     # picture_ratio = db.Column(db.Float)
@@ -186,13 +176,13 @@ class Post(db.Model):
     fav_count = db.Column(db.Integer)
     comment_count = db.Column(db.Integer)
 
-    def __init__(self, uid, content, picture,):
+    def __init__(self, uid, content, picture, ):
         self.uid = uid
         self.content = content
         self.picture = picture
         # self.picture_ratio = picture_ratio
         self.create_time = datetime.now()
-        self.view_count=0
+        self.view_count = 0
         self.fav_count = 0
         self.comment_count = 0
 
@@ -211,7 +201,7 @@ class Post(db.Model):
             "content": self.content,
             "picture": self.picture,
             # "pictureRatio": round(self.picture_ratio, 2),
-            "viewCount":self.view_count,
+            "viewCount": self.view_count,
             "createTime": self.create_time_str,
             "favCount": self.fav_count,
             "commentCount": self.comment_count,
@@ -232,7 +222,7 @@ class FeedsFav(db.Model):
     @property
     def create_time_str(self):
         dateArray = datetime.utcfromtimestamp(self.time)
-        return  dateArray.strftime("%Y-%m-%d %H:%M:%S")
+        return dateArray.strftime("%Y-%m-%d %H:%M:%S")
         # self.time.strftime('%Y/%m/%d %H:%M:%S')
 
 
@@ -280,14 +270,15 @@ class FeedsComment(db.Model):
     def comments_dict_for_uid(cls, uid):
         comments_arr = db.session.query(FeedsComment, Post, User).filter(Post.uid == User.uid,
                                                                          FeedsComment.fid == Post.fid,
-                                                                         Post.uid == uid).order_by(FeedsComment.create_time.desc()).all()
+                                                                         Post.uid == uid).order_by(
+            FeedsComment.create_time.desc()).all()
         return [each[0].info_dict_for_user(each[2], post=each[1]) for each in comments_arr]
 
 
 class Activities(db.Model):
     # __bind_key__ = 'activity'
     # activity_name = db.Column(db.VARCHAR(10), primary_key=True, unique=True)
-    aid = db.Column(db.Integer, primary_key=True,autoincrement=True)
+    aid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     uid = db.Column(db.Integer, db.ForeignKey('user.uid'))
     title = db.Column(db.Text)
     note = db.Column(db.Text)
@@ -298,7 +289,7 @@ class Activities(db.Model):
     create_time = db.Column(db.DateTime)
     join_time = db.Column(db.DateTime)
     end_time = db.Column(db.DateTime)
-    organization =db.Column(db.Text)
+    organization = db.Column(db.Text)
     activity_type = db.Column(db.Text)
     max_person = db.Column(db.Integer)
     award = db.Column(db.Integer)
@@ -306,14 +297,14 @@ class Activities(db.Model):
     team_enable = db.Column(db.Boolean, default=False)
     # 改为是否需要实名
     upload_enable = db.Column(db.Boolean, default=False)
-    view_count=db.Column(db.Integer)
-    rank = db.Column(db.Integer,)
+    view_count = db.Column(db.Integer)
+    rank = db.Column(db.Integer, )
     hide = db.Column(db.Boolean, default=False)
     registered = db.Column(db.Integer)
     comment_count = db.Column(db.Integer)
 
     def __init__(self, uid, title, note, picture, address, start_time, phone, join_time,
-                 end_time, activity_type, max_person, award, team_enable, upload_enable, organization,):
+                 end_time, activity_type, max_person, award, team_enable, upload_enable, organization, ):
         self.uid = uid
         self.title = title
         self.note = note
@@ -368,7 +359,7 @@ class Activities(db.Model):
             "aid": self.aid,
             "title": self.title,
             "picture": self.picture,
-            "award":self.award,
+            "award": self.award,
             "start_time": self.start_time_str,
             # "pictureRatio": round(self.picture_ratio, 2),
             "address": self.address,
@@ -376,7 +367,7 @@ class Activities(db.Model):
             "max_person": self.max_person,
             "registered": self.registered,
             "user": self.user_model.general_info_dict,
-            "reg_enable":self.reg_enable
+            "reg_enable": self.reg_enable
         }
 
     @property
@@ -389,25 +380,25 @@ class Activities(db.Model):
             "organization": self.organization,
             "award": self.award,
             "note": self.note,
-            "upload_enable":self.upload_enable,
-            "view_count":self.view_count,
-            "team_enable":self.team_enable
+            "upload_enable": self.upload_enable,
+            "view_count": self.view_count,
+            "team_enable": self.team_enable
         })
         return general_info
     # def __repr__(self):
     #     return "{0} {1} {2}".format(self.activity_name, self.team_enable, self.upload_enable)
 
 
-
-
 class ActivityFav(db.Model):
     aid = db.Column(db.Integer, db.ForeignKey('activities.aid'), primary_key=True)
     uid = db.Column(db.Integer, db.ForeignKey('user.uid'), primary_key=True)
+    team_info = db.Column(db.Text, nullable=True)
     time = db.Column(db.Integer)
 
-    def __init__(self, aid, uid):
+    def __init__(self, aid, uid, team_info):
         self.aid = aid
         self.uid = uid
+        self.team_info = team_info
         self.time = int(datetime.now().timestamp())
 
 
@@ -478,8 +469,4 @@ class Admins(db.Model):
     __bind_key__ = 'activity'
     user = db.Column(db.VARCHAR, primary_key=True)
     passwd = db.Column(db.Text)
-
-#
-# whooshalchemy.whoosh_index(parent_app, Post)
-flask_whooshalchemyplus.init_app(parent_app)
 
