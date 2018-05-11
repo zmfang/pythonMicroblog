@@ -373,12 +373,13 @@ def generate_excel():
     for each in fav_list:
         row += 1
         person = User.query.filter_by(uid=each.uid).first()
+        team =ActivityFav.query.filter_by(uid=each.uid,aid=aid).first().team_info
         # activity= Activities.query.filter_by(activity=person.aid).first().title
         table.write(row, 0, person.name)
         table.write(row, 1, person.stu_code)
         table.write(row, 2, person.qq)
         table.write(row, 3, person.phone)
-        table.write(row, 4, person.team)
+        table.write(row, 4, team)
         table.write(row, 5, person.nickname)
         # if person.has_submit:
         #     table.write(row, 6, "YES")
