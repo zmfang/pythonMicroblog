@@ -57,6 +57,14 @@ def register():
     db.session.commit()
     s['success'] = True
     s['token'] = new_user.generate_auth_token()
+    profile = {
+        "nickname": new_user.nickname,
+        "avatar": new_user.avatar,
+        "introduce": new_user.introduce,
+        "mail": new_user.mail,
+        "uid": new_user.uid,
+    }
+    s["profile"] = profile
     return jsonify(s)
 
 
