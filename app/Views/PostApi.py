@@ -129,13 +129,19 @@ def get_fav_list():
 @app.route('/favPost_list')
 @login_required
 def get_favpost_list():
-    fav_list = FeedsFav.query.filter_by(uid=g.user.uid).all()
-    res=[]
+    page = int(request.args.get('page', '0'))
+    fav_list = FeedsFav.query.filter_by(uid=g.user.uid).offset(page * 5).limit(5).all()
+    res = []
     for each in fav_list:
-       item = Post.query.filter_by(fid=each.fid).first()
-       res.append(item.general_info_dict_with_user)
+        item = Post.query.filter_by(fid=each.fid).first()
+        res.append(item.general_info_dict_with_user)
+    if len(post) > 0:
+        end = False
 
-    return jsonify(data=res)
+    else:
+        end = True
+
+    return jsonify(data=res, end=end)
 
 
 @app.route('/myPost_list')
