@@ -96,10 +96,10 @@ def get_activitylist():
         else:
             timestamp = datetime.datetime.fromtimestamp(int(timestamp))
         if  activity_type=='综合':
-            activities = Activities.query.filter(Activities.create_time < timestamp).order_by(
+            activities = Activities.query.filter(Activities.reg_enable==True,Activities.create_time < timestamp).order_by(
                 Activities.create_time.desc()).limit(4).all()
         else:
-            activities = Activities.query.filter(Activities.activity_type == activity_type,Activities.create_time < timestamp).order_by(Activities.create_time.desc()).limit(4).all()
+            activities = Activities.query.filter(Activities.reg_enable==True,Activities.activity_type == activity_type,Activities.create_time < timestamp).order_by(Activities.create_time.desc()).limit(4).all()
     elif orderby=='发布时间':
 
         if not timestamp:
@@ -107,10 +107,11 @@ def get_activitylist():
         else:
             timestamp = datetime.datetime.fromtimestamp(int(timestamp))
         if activity_type=='综合':
-            activities = Activities.query.order_by(
+            activities = Activities.query.filter(Activities.reg_enable==True).order_by(
                 Activities.create_time.desc()).offset(page*5).limit(5).all()
         else:
             activities = Activities.query.filter(Activities.activity_type == activity_type,
+                                                 Activities.reg_enable == True,
                                              Activities.create_time < timestamp).order_by(
             Activities.create_time.desc()).limit(4).all()
     elif orderby=='报名截止时间':
@@ -120,18 +121,18 @@ def get_activitylist():
 
         else:
             activities = Activities.query.filter(Activities.activity_type == activity_type,
-                                             ).order_by(
+                                                 Activities.reg_enable == True).order_by(
             Activities.end_time.asc()).offset(page * 5).limit(5).all()
 
     elif orderby == '活动开始时间':
 
         if activity_type=='综合':
-            activities = Activities.query.order_by(
+            activities = Activities.query.filter(Activities.reg_enable==True).order_by(
                 Activities.start_time.asc()).offset(page*5).limit(5).all()
-            print(activities)
+            # print(activities)
         else:
             activities = Activities.query.filter(Activities.activity_type == activity_type,
-                                             ).order_by(
+                                                 Activities.reg_enable == True).order_by(
             Activities.start_time.asc()).offset(page * 5).limit(5).all()
 
     res =[]
@@ -171,7 +172,12 @@ def get_activity_detail(aid):
         res.reg_enable=False
         db.session.commit()
     else:
-        res_able=True
+        if res.max_person <= res.registered:
+            res_able = False
+            res.reg_enable = False
+            db.session.commit()
+        else:
+            res_able = True
     return jsonify(detail=res.detail_info_act_with_user,res_able=res_able,file_token=file_token,team_info=team_info)
 
 

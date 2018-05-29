@@ -98,7 +98,7 @@ class User(db.Model):
         self.nickname = nickname
         self.introduce = ''
         self.token_version = 0
-        # self.avatar = 'avatar_default.png'
+        self.avatar = 'avatar_default.png'
 
     def update_password(self, password):
         self.password = generate_password_hash(password)
