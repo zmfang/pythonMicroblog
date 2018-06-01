@@ -263,7 +263,7 @@ class FeedsComment(db.Model):
     @classmethod
     def comments_dict_for_feed(cls, fid):
         comments_arr = db.session.query(FeedsComment, User).filter(FeedsComment.fid == fid,
-                                                                   FeedsComment.uid == User.uid).all()
+                                                                   FeedsComment.uid == User.uid).order_by(FeedsComment.create_time.desc()).all()
         return [each[0].info_dict_for_user(each[1]) for each in comments_arr]
 
     @classmethod
@@ -439,7 +439,7 @@ class ActivityComment(db.Model):
     @classmethod
     def comments_dict_for_activity(cls, aid):
         comments_arr = db.session.query(ActivityComment, User).filter(ActivityComment.aid == aid,
-                                                                      ActivityComment.uid == User.uid).all()
+                                                                      ActivityComment.uid == User.uid).order_by(ActivityComment.create_time.desc()).all()
         return [each[0].info_dict_for_user(each[1]) for each in comments_arr]
 
     @classmethod

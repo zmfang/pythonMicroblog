@@ -135,7 +135,7 @@ def get_favpost_list():
     for each in fav_list:
         item = Post.query.filter_by(fid=each.fid).first()
         res.append(item.general_info_dict_with_user)
-    if len(post) > 0:
+    if len(fav_list) > 0:
         end = False
 
     else:
